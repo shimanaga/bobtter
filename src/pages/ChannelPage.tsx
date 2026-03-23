@@ -18,7 +18,11 @@ export default function ChannelPage({ channels }: ChannelPageProps) {
 
   const hideReplies = channel ? getHideReplies(channel.id) : false
   const displayItems = hideReplies
-    ? items.filter(item => item.type === 'post' && item.post.parent_id === null)
+    ? items.flatMap(item => {
+        if (item.type === 'post') return item.post.parent_id === null ? [item] : []
+        // thread: parentをスタンドアロン投稿として表示、replyは非表示
+        return [{ type: 'post' as const, post: item.parent }]
+      })
     : items
 
   if (!channel) {
@@ -42,12 +46,12 @@ export default function ChannelPage({ channels }: ChannelPageProps) {
 
       <PostComposer channels={channels} defaultChannelId={channel.id} onPosted={addPost} />
 
-      <div className="flex mt-3 mb-1 rounded-lg overflow-hidden self-start" style={{ border: '1px solid var(--border)' }}>
+      <div className="flex w-full mt-3 mb-1 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
         {([false, true] as const).map(val => (
           <button
             key={String(val)}
             onClick={() => setHideReplies(channel.id, val)}
-            className="text-xs px-3 py-1.5 transition-colors"
+            className="flex-1 text-xs py-1.5 transition-colors text-center"
             style={{
               backgroundColor: hideReplies === val ? 'var(--accent-dim)' : 'transparent',
               color: hideReplies === val ? 'var(--accent)' : 'var(--text-3)',
