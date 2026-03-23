@@ -142,8 +142,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
     displayedIdsRef.current = new Set()
     cursorRef.current = null
 
-    const { data, error } = await buildQuery()
-    console.log('[buildTimeline] data:', data?.length, 'error:', error)
+    const { data } = await buildQuery()
     if (!data) { setLoading(false); return }
 
     setHasMore(data.length === PAGE_SIZE)
@@ -241,7 +240,6 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
         })
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, payload => {
-        console.log('[likes *]', payload.eventType, payload)
         if (payload.eventType === 'INSERT') {
           const { post_id, user_id } = payload.new as { post_id: string; user_id: string }
           if (user_id === profile.id) {
@@ -252,7 +250,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
           setItems(prev => prev.map(item => applyLikeUpdate(item, post_id, 1)))
         } else if (payload.eventType === 'DELETE') {
           const old = payload.old as Partial<{ post_id: string; user_id: string }>
-          if (!old.post_id) { console.log('[likes DELETE] no post_id in old'); return }
+          if (!old.post_id) return
           if (old.user_id === profile.id) {
             if (pendingLikeOps.has(old.post_id)) { pendingLikeOps.delete(old.post_id); return }
             setItems(prev => prev.map(item => applyLikeUpdate(item, old.post_id!, -1, false)))
