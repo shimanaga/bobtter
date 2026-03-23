@@ -10,7 +10,7 @@ import type { ChannelVisibility } from '../lib/database.types'
 const VISIBILITY_OPTIONS: { value: ChannelVisibility; label: string }[] = [
   { value: 'visible',     label: '表示' },
   { value: 'main_hidden', label: 'メインのみ非表示' },
-  { value: 'hidden',      label: '完全非表示' },
+  { value: 'hidden',      label: '非表示' },
 ]
 
 export default function ProfilePage() {
@@ -25,7 +25,6 @@ export default function ProfilePage() {
   const [prefsError, setPrefsError] = useState<string | null>(null)
 
   // Avatar state
-  const [savedAvatarUrl] = useState<string | null>(profile?.avatar_url ?? null)
   const [discordAvatarUrl, setDiscordAvatarUrl] = useState<string | null>(null)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   const [pendingBlob, setPendingBlob] = useState<Blob | null>(null)
@@ -36,7 +35,13 @@ export default function ProfilePage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      const url = data.user?.user_metadata?.avatar_url as string | undefined
+      const user = data.user
+      if (!user) return
+      // Try multiple locations where Discord OAuth may store the avatar
+      const meta = user.user_metadata ?? {}
+      const identity = user.identities?.find(i => i.provider === 'discord')?.identity_data ?? {}
+      const url: string | undefined =
+        meta.avatar_url ?? meta.picture ?? identity.avatar_url ?? identity.picture
       if (url) setDiscordAvatarUrl(url)
     })
   }, [])
@@ -46,7 +51,7 @@ export default function ProfilePage() {
     ? pendingPreview
     : pendingReset
     ? discordAvatarUrl
-    : (savedAvatarUrl ?? profile?.avatar_url ?? null)
+    : (profile?.avatar_url ?? null)
 
   const avatarChanged = pendingBlob !== null || pendingReset
 
@@ -319,7 +324,7 @@ export default function ProfilePage() {
           ))}
         </div>
         <p className="text-xs mt-2" style={{ color: 'var(--text-3)' }}>
-          「メインのみ非表示」はサイドバーには表示されますが全体タイムラインには流れません。「完全非表示」はサイドバーからも消えます。どちらの場合もチャンネル単体は引き続き閲覧できます。
+          「メインのみ非表示」は全体タイムラインに流れなくなりますが、チャンネル単体での閲覧は引き続き可能です。「非表示」はチャンネル一覧からも消えます。
         </p>
       </div>
     </div>
