@@ -19,7 +19,6 @@ export default function ThreadItem({ parent, reply, channels, onUpdate, onDelete
         onUpdate={onUpdate}
         onDelete={onDelete}
         showChannel
-        threadLine
       />
       {/* 返信 */}
       <PostCard

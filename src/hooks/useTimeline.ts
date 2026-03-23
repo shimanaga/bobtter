@@ -66,6 +66,26 @@ function buildItemsFromBatch(
   }
 }
 
+function removePostById(prev: TimelineItem[], id: string): TimelineItem[] {
+  const replyIdsInOtherThreads = new Set(
+    prev
+      .filter((item): item is { type: 'thread'; parent: PostWithMeta; reply: PostWithMeta } =>
+        item.type === 'thread' && item.reply.id !== id)
+      .map(item => item.reply.id)
+  )
+  return prev.flatMap(item => {
+    if (item.type === 'post' && item.post.id === id) return []
+    if (item.type === 'thread') {
+      if (item.reply.id === id) {
+        if (replyIdsInOtherThreads.has(item.parent.id)) return []
+        return [{ type: 'post' as const, post: item.parent }]
+      }
+      if (item.parent.id === id) return []
+    }
+    return [item]
+  })
+}
+
 function applyLikeDelta(item: TimelineItem, postId: string, delta: number): TimelineItem {
   if (item.type === 'post' && item.post.id === postId) {
     return { ...item, post: { ...item.post, likes_count: Math.max(0, item.post.likes_count + delta) } }
@@ -228,6 +248,12 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
         if (old.user_id === profile.id) return
         setItems(prev => prev.map(item => applyLikeDelta(item, old.post_id!, -1)))
       })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, payload => {
+        const old = payload.old as Partial<{ id: string; user_id: string }>
+        if (!old.id) return
+        if (old.user_id === profile.id) return // 自分の削除はhandleDelete側で処理済み
+        setItems(prev => removePostById(prev, old.id!))
+      })
       .subscribe()
 
     const replyHandler = (e: Event) => {
@@ -265,14 +291,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
   }
 
   function deleteItem(id: string) {
-    setItems(prev => prev.flatMap(item => {
-      if (item.type === 'post' && item.post.id === id) return []
-      if (item.type === 'thread') {
-        if (item.reply.id === id) return [{ type: 'post' as const, post: item.parent }]
-        if (item.parent.id === id) return []
-      }
-      return [item]
-    }))
+    setItems(prev => removePostById(prev, id))
   }
 
   function addPost(post: PostWithMeta) {
