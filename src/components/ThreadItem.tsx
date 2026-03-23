@@ -1,3 +1,4 @@
+import { useRef, useLayoutEffect, useState, useCallback } from 'react'
 import type { Channel, PostWithMeta } from '../lib/database.types'
 import PostCard from './PostCard'
 
@@ -9,10 +10,61 @@ interface ThreadItemProps {
   onDelete: (id: string) => void
 }
 
+interface Connector {
+  x: number
+  top: number
+  height: number
+  width: number
+}
+
 export default function ThreadItem({ parent, reply, channels, onUpdate, onDelete }: ThreadItemProps) {
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const [connector, setConnector] = useState<Connector | null>(null)
+
+  const measure = useCallback(() => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) return
+    const avatars = wrapper.querySelectorAll<HTMLElement>('[data-thread-avatar]')
+    if (avatars.length < 2) return
+    const wRect = wrapper.getBoundingClientRect()
+    const pAv = avatars[0].getBoundingClientRect()
+    const rAv = avatars[1].getBoundingClientRect()
+    const x = pAv.left + pAv.width / 2 - wRect.left - 0.5
+    const top = pAv.bottom - wRect.top
+    const height = rAv.top + rAv.height / 2 - pAv.bottom
+    const width = rAv.left - (pAv.left + pAv.width / 2) + 0.5
+    if (height > 0 && width > 0) {
+      setConnector({ x, top, height, width })
+    }
+  }, [])
+
+  useLayoutEffect(() => {
+    measure()
+    const wrapper = wrapperRef.current
+    if (!wrapper) return
+    const ro = new ResizeObserver(measure)
+    ro.observe(wrapper)
+    return () => ro.disconnect()
+  }, [parent.id, reply.id, measure])
+
   return (
-    <div>
-      {/* 親投稿 - スレッドラインあり */}
+    <div ref={wrapperRef} style={{ position: 'relative' }}>
+      {connector && (
+        <div
+          style={{
+            position: 'absolute',
+            left: `${connector.x}px`,
+            top: `${connector.top}px`,
+            width: `${connector.width}px`,
+            height: `${connector.height}px`,
+            borderLeft: '1px solid var(--border)',
+            borderBottom: '1px solid var(--border)',
+            borderBottomLeftRadius: Math.min(connector.width, 12),
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        />
+      )}
       <PostCard
         post={parent}
         channels={channels}
@@ -22,36 +74,14 @@ export default function ThreadItem({ parent, reply, channels, onUpdate, onDelete
         threadLine
         noBorderBottom
       />
-      {/* 返信 - L字カーブコネクター付き */}
-      <div style={{ position: 'relative' }}>
-        {/*
-          左端からの距離:
-            親アバター中心 = px-5(20px) + w-8/2(16px) = 36px → left: 35px
-            返信アバター左端 = pl-10(40px) + px-5(20px) = 60px
-          高さ: py-4(16px) + アバター中心まで(16px) = 32px → 28px に抑える
-        */}
-        <div
-          style={{
-            position: 'absolute',
-            left: '35px',
-            top: '-16px',  // py-4 の下パディング分だけ上に伸ばして途切れを防ぐ
-            width: '26px', // 返信アバター左端(60px) - left(35px) - 1px
-            height: '48px', // 16px(パディング分) + 32px(アバター中心まで: py-4 + avatar/2)
-            borderLeft: '1px solid var(--border)',
-            borderBottom: '1px solid var(--border)',
-            borderBottomLeftRadius: '12px',
-            pointerEvents: 'none',
-          }}
-        />
-        <PostCard
-          post={reply}
-          channels={channels}
-          onUpdate={onUpdate}
-          onDelete={onDelete}
-          showChannel={false}
-          depth={1}
-        />
-      </div>
+      <PostCard
+        post={reply}
+        channels={channels}
+        onUpdate={onUpdate}
+        onDelete={onDelete}
+        showChannel={false}
+        depth={1}
+      />
     </div>
   )
 }

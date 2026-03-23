@@ -422,6 +422,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
             {/* Avatar + スレッドライン */}
             <div className="flex flex-col items-center shrink-0">
               <div
+                data-thread-avatar=""
                 className="w-8 h-8 rounded-full flex items-center justify-center font-display font-bold text-sm overflow-hidden"
                 style={{
                   background: post.is_anonymous

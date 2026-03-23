@@ -28,7 +28,7 @@ function AppRoutes() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-base)' }}>
         <div className="font-display text-4xl font-bold" style={{ color: 'var(--accent)', opacity: 0.3 }}>
-          bobtter
+          Bobtter
         </div>
       </div>
     )

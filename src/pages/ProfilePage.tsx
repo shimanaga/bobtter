@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react'
-import { Camera, Check, Loader2, ChevronUp, ChevronDown } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Camera, Check, Loader2, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useChannelPrefs } from '../contexts/ChannelPrefsContext'
 import { uploadAvatar } from '../lib/uploadImage'
+import AvatarCropperModal from '../components/AvatarCropperModal'
 import type { ChannelVisibility } from '../lib/database.types'
 
 const VISIBILITY_OPTIONS: { value: ChannelVisibility; label: string }[] = [
@@ -20,11 +21,34 @@ export default function ProfilePage() {
   const [bio, setBio] = useState(profile?.bio ?? '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(profile?.avatar_url ?? null)
   const [prefsError, setPrefsError] = useState<string | null>(null)
+
+  // Avatar state
+  const [savedAvatarUrl] = useState<string | null>(profile?.avatar_url ?? null)
+  const [discordAvatarUrl, setDiscordAvatarUrl] = useState<string | null>(null)
+  const [cropSrc, setCropSrc] = useState<string | null>(null)
+  const [pendingBlob, setPendingBlob] = useState<Blob | null>(null)
+  const [pendingPreview, setPendingPreview] = useState<string | null>(null)
+  const [pendingReset, setPendingReset] = useState(false)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const url = data.user?.user_metadata?.avatar_url as string | undefined
+      if (url) setDiscordAvatarUrl(url)
+    })
+  }, [])
+
+  // Displayed avatar: pending crop > pending reset (discord) > saved
+  const displayAvatarUrl = pendingBlob
+    ? pendingPreview
+    : pendingReset
+    ? discordAvatarUrl
+    : (savedAvatarUrl ?? profile?.avatar_url ?? null)
+
+  const avatarChanged = pendingBlob !== null || pendingReset
 
   async function handleMove(id: string, dir: 'up' | 'down') {
     const err = await move(id, dir)
@@ -36,22 +60,35 @@ export default function ProfilePage() {
     setPrefsError(err)
   }
 
-  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file || !profile) return
-    setUploadingAvatar(true)
-    setError(null)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const publicUrl = await uploadAvatar(file, session!.access_token)
-      setAvatarPreview(publicUrl + '?t=' + Date.now())
-      await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', profile.id)
-      await refreshProfile()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'アップロードに失敗しました')
-    } finally {
-      setUploadingAvatar(false)
-    }
+    if (!file) return
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    const url = URL.createObjectURL(file)
+    setCropSrc(url)
+  }
+
+  function handleCropConfirm(blob: Blob) {
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview)
+    const preview = URL.createObjectURL(blob)
+    setPendingBlob(blob)
+    setPendingPreview(preview)
+    setPendingReset(false)
+    if (cropSrc) URL.revokeObjectURL(cropSrc)
+    setCropSrc(null)
+  }
+
+  function handleCropCancel() {
+    if (cropSrc) URL.revokeObjectURL(cropSrc)
+    setCropSrc(null)
+  }
+
+  function handleReset() {
+    if (!discordAvatarUrl) return
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview)
+    setPendingBlob(null)
+    setPendingPreview(null)
+    setPendingReset(true)
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -59,18 +96,45 @@ export default function ProfilePage() {
     if (!profile) return
     setSaving(true)
     setError(null)
-    const { error } = await supabase
-      .from('profiles')
-      .update({ display_name: displayName.trim(), username: username.trim(), bio: bio.trim(), updated_at: new Date().toISOString() })
-      .eq('id', profile.id)
-    if (error) {
-      setError(error.message)
-    } else {
+
+    try {
+      let newAvatarUrl: string | undefined
+
+      if (pendingBlob) {
+        const { data: { session } } = await supabase.auth.getSession()
+        const file = new File([pendingBlob], 'avatar.webp', { type: 'image/webp' })
+        newAvatarUrl = await uploadAvatar(file, session!.access_token)
+      } else if (pendingReset && discordAvatarUrl) {
+        newAvatarUrl = discordAvatarUrl
+      }
+
+      const update: Record<string, string> = {
+        display_name: displayName.trim(),
+        username: username.trim(),
+        bio: bio.trim(),
+        updated_at: new Date().toISOString(),
+      }
+      if (newAvatarUrl !== undefined) update.avatar_url = newAvatarUrl
+
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .update(update)
+        .eq('id', profile.id)
+
+      if (dbError) throw dbError
+
       await refreshProfile()
+      if (pendingPreview) URL.revokeObjectURL(pendingPreview)
+      setPendingBlob(null)
+      setPendingPreview(null)
+      setPendingReset(false)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '保存に失敗しました')
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   if (!profile) return null
@@ -79,6 +143,14 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-xl mx-auto py-6 px-4">
+      {cropSrc && (
+        <AvatarCropperModal
+          src={cropSrc}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
+      )}
+
       <h2 className="font-display font-bold text-lg mb-6" style={{ color: 'var(--text-1)' }}>
         プロフィール
       </h2>
@@ -94,28 +166,44 @@ export default function ProfilePage() {
             }}
             onClick={() => fileInputRef.current?.click()}
           >
-            {avatarPreview ? (
-              <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
+            {displayAvatarUrl ? (
+              <img src={displayAvatarUrl} alt="" className="w-full h-full object-cover" />
             ) : avatarText}
           </div>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploadingAvatar}
             className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
             style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
           >
-            {uploadingAvatar
-              ? <Loader2 size={18} className="animate-spin" style={{ color: 'var(--text-1)' }} />
-              : <Camera size={18} style={{ color: 'var(--text-1)' }} />}
+            <Camera size={18} style={{ color: '#fff' }} />
           </button>
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
         </div>
-        <div>
+
+        <div className="flex flex-col gap-1.5">
           <p className="font-display font-semibold" style={{ color: 'var(--text-1)' }}>{profile.display_name}</p>
           <p className="font-mono text-sm" style={{ color: 'var(--text-3)' }}>@{profile.username}</p>
+          {discordAvatarUrl && (
+            <button
+              type="button"
+              onClick={handleReset}
+              className="flex items-center gap-1 text-xs transition-colors"
+              style={{ color: pendingReset ? 'var(--accent)' : 'var(--text-3)' }}
+            >
+              <RotateCcw size={11} />
+              初期アバターに戻す
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Pending avatar notice */}
+      {avatarChanged && !saving && (
+        <p className="text-xs mb-4 px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}>
+          アバターの変更は「保存する」を押すと反映されます
+        </p>
+      )}
 
       {/* Form */}
       <form onSubmit={handleSave} className="space-y-4 mb-10">
@@ -160,7 +248,11 @@ export default function ProfilePage() {
         {error && <p className="text-sm" style={{ color: '#e87878' }}>{error}</p>}
 
         <button type="submit" disabled={saving} className="btn-primary flex items-center gap-2">
-          {saved ? <><Check size={14} /> 保存しました</> : saving ? '保存中...' : '保存する'}
+          {saving
+            ? <><Loader2 size={14} className="animate-spin" />保存中...</>
+            : saved
+            ? <><Check size={14} />保存しました</>
+            : '保存する'}
         </button>
       </form>
 
