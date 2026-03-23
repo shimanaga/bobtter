@@ -43,7 +43,7 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
 
     if (incoming.some(f => isVideo(f))) {
       const video = incoming.find(f => isVideo(f))!
-      if (video.size > VIDEO_MAX_BYTES) { setError('動画は50MB以下にしてください'); return }
+      if (video.size > VIDEO_MAX_BYTES) { setError('動画の添付は推奨されていません。50MB以下の動画のみ投稿できます'); return }
       mediaPreviews.forEach(u => URL.revokeObjectURL(u))
       setMediaFiles([video])
       setMediaPreviews([URL.createObjectURL(video)])
@@ -169,7 +169,7 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
       {hasVideo && (
         <div
           className="flex items-start gap-2 rounded-lg px-3 py-2 mt-2 text-xs"
-          style={{ backgroundColor: 'rgba(232,160,96,0.1)', border: '1px solid rgba(232,160,96,0.3)', color: 'var(--accent)' }}
+          style={{ backgroundColor: 'rgba(232,120,120,0.1)', border: '1px solid rgba(232,120,120,0.35)', color: '#e87878' }}
         >
           <AlertTriangle size={13} className="shrink-0 mt-0.5" />
           <span>動画の添付は推奨されていません。最大 50MB まで添付できます。</span>

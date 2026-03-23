@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { pendingLikeOps } from '../hooks/useTimeline'
 import { Heart, MessageCircle, Bookmark, Hash, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -294,6 +295,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
 
   async function toggleLike() {
     if (!profile) return
+    pendingLikeOps.add(post.id)
     if (post.liked_by_me) {
       await supabase.from('likes').delete().match({ post_id: post.id, user_id: profile.id })
       onUpdate({ ...post, liked_by_me: false, likes_count: post.likes_count - 1 })

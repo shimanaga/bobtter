@@ -86,17 +86,17 @@ function removePostById(prev: TimelineItem[], id: string): TimelineItem[] {
   })
 }
 
-function applyLikeDelta(item: TimelineItem, postId: string, delta: number): TimelineItem {
-  if (item.type === 'post' && item.post.id === postId) {
-    return { ...item, post: { ...item.post, likes_count: Math.max(0, item.post.likes_count + delta) } }
+// 同一デバイスからのいいね操作をマーク（Realtimeの二重適用防止）
+export const pendingLikeOps = new Set<string>()
+
+function applyLikeUpdate(item: TimelineItem, postId: string, delta: number, likedByMe?: boolean): TimelineItem {
+  const patch = (p: PostWithMeta): PostWithMeta => p.id !== postId ? p : {
+    ...p,
+    likes_count: Math.max(0, p.likes_count + delta),
+    ...(likedByMe !== undefined && { liked_by_me: likedByMe }),
   }
-  if (item.type === 'thread') {
-    let { parent, reply } = item
-    if (parent.id === postId) parent = { ...parent, likes_count: Math.max(0, parent.likes_count + delta) }
-    if (reply.id === postId) reply = { ...reply, likes_count: Math.max(0, reply.likes_count + delta) }
-    return { ...item, parent, reply }
-  }
-  return item
+  if (item.type === 'post') return { ...item, post: patch(item.post) }
+  return { ...item, parent: patch(item.parent), reply: patch(item.reply) }
 }
 
 export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) {
@@ -242,14 +242,24 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' }, payload => {
         const { post_id, user_id } = payload.new as { post_id: string; user_id: string }
-        if (user_id === profile.id) return
-        setItems(prev => prev.map(item => applyLikeDelta(item, post_id, 1)))
+        if (user_id === profile.id) {
+          if (pendingLikeOps.has(post_id)) { pendingLikeOps.delete(post_id); return }
+          // 別端末からの自分のいいね → liked_by_me も true に
+          setItems(prev => prev.map(item => applyLikeUpdate(item, post_id, 1, true)))
+          return
+        }
+        setItems(prev => prev.map(item => applyLikeUpdate(item, post_id, 1)))
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, payload => {
         const old = payload.old as Partial<{ post_id: string; user_id: string }>
         if (!old.post_id) return
-        if (old.user_id === profile.id) return
-        setItems(prev => prev.map(item => applyLikeDelta(item, old.post_id!, -1)))
+        if (old.user_id === profile.id) {
+          if (pendingLikeOps.has(old.post_id)) { pendingLikeOps.delete(old.post_id); return }
+          // 別端末からの自分のいいね取り消し → liked_by_me も false に
+          setItems(prev => prev.map(item => applyLikeUpdate(item, old.post_id!, -1, false)))
+          return
+        }
+        setItems(prev => prev.map(item => applyLikeUpdate(item, old.post_id!, -1)))
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, payload => {
         const old = payload.old as Partial<{ id: string; user_id: string }>
