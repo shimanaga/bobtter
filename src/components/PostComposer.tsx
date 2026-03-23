@@ -120,7 +120,8 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
       setMediaPreviews([])
       setHasVideo(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '投稿に失敗しました')
+      console.error('post error:', err)
+      setError(err instanceof Error ? err.message : (err as any)?.message ?? JSON.stringify(err) ?? '投稿に失敗しました')
     } finally {
       setSubmitting(false)
       setCompressing(false)
