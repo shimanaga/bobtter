@@ -40,11 +40,13 @@ export default function ThreadItem({ parent, reply, channels, onUpdate, onDelete
 
   useLayoutEffect(() => {
     measure()
+    // post-enter is a 0.2s translateY animation; re-measure after it finishes
+    const timer = setTimeout(measure, 250)
     const wrapper = wrapperRef.current
     if (!wrapper) return
     const ro = new ResizeObserver(measure)
     ro.observe(wrapper)
-    return () => ro.disconnect()
+    return () => { clearTimeout(timer); ro.disconnect() }
   }, [parent.id, reply.id, measure])
 
   return (
