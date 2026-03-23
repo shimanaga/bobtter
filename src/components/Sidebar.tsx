@@ -24,7 +24,7 @@ export default function Sidebar() {
           className="font-display text-xl font-bold tracking-tight select-none"
           style={{ color: 'var(--accent)' }}
         >
-          bobtter
+          Bobtter
         </span>
       </div>
 

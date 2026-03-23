@@ -49,7 +49,9 @@ Deno.serve(async (req) => {
     })
 
     if (!resolveRes.ok) {
-      return json({ error: 'Discord ユーザーが見つかりません。ユーザー名を確認してください。' }, 404)
+      const resolveErr = await resolveRes.text()
+      console.error('resolve-user failed:', resolveRes.status, resolveErr)
+      return json({ error: `Discord ユーザーが見つかりません。ユーザー名を確認してください。(${resolveRes.status})` }, 404)
     }
 
     const { discord_id, display_name: discordDisplayName } = await resolveRes.json() as {
