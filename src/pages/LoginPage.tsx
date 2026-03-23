@@ -5,6 +5,7 @@ type Step = 'input' | 'code'
 
 export default function LoginPage() {
   const [step, setStep] = useState<Step>('input')
+  const [username, setUsername] = useState('')
   const [discordId, setDiscordId] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [code, setCode] = useState('')
@@ -13,7 +14,7 @@ export default function LoginPage() {
 
   async function requestCode(e: React.FormEvent) {
     e.preventDefault()
-    if (!discordId.trim()) return
+    if (!username.trim()) return
     setError(null)
     setLoading(true)
 
@@ -24,7 +25,7 @@ export default function LoginPage() {
         'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
       },
       body: JSON.stringify({
-        discord_id: discordId.trim(),
+        username: username.trim(),
         display_name: displayName.trim() || undefined,
       }),
     })
@@ -37,6 +38,7 @@ export default function LoginPage() {
       return
     }
 
+    setDiscordId(json.discord_id)
     setStep('code')
   }
 
@@ -112,18 +114,20 @@ export default function LoginPage() {
                 </p>
 
                 <label className="block text-sm mb-1.5" style={{ color: 'var(--text-2)' }}>
-                  Discord ユーザー ID
+                  Discord ユーザー名
                 </label>
                 <input
                   type="text"
-                  value={discordId}
-                  onChange={e => setDiscordId(e.target.value.replace(/\D/g, ''))}
+                  value={username}
+                  onChange={e => setUsername(e.target.value.replace(/^@/, ''))}
                   required
                   className="input-base w-full font-mono"
-                  placeholder="123456789012345678"
+                  placeholder="username"
+                  autoComplete="off"
+                  autoCapitalize="none"
                 />
                 <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
-                  設定 → 詳細設定 → 開発者モードをONにするとコピーできます
+                  @ は不要です。プロフィールに表示されている固有のユーザー名を入力してください
                 </p>
               </div>
 
@@ -151,7 +155,7 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <button type="submit" disabled={loading || !discordId.trim()} className="btn-primary w-full py-2.5">
+              <button type="submit" disabled={loading || !username.trim()} className="btn-primary w-full py-2.5">
                 {loading ? '送信中...' : 'DM に認証コードを送る'}
               </button>
             </form>
@@ -192,7 +196,7 @@ export default function LoginPage() {
 
               <button
                 type="button"
-                onClick={() => { setStep('input'); setCode(''); setError(null) }}
+                onClick={() => { setStep('input'); setCode(''); setDiscordId(''); setError(null) }}
                 className="w-full text-sm py-1"
                 style={{ color: 'var(--text-3)' }}
               >

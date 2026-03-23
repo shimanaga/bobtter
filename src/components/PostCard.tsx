@@ -184,26 +184,29 @@ export default function PostCard({ post, channels, onUpdate, showChannel = true,
 
               <button
                 onClick={toggleLike}
-                className="flex items-center gap-1.5 text-xs transition-colors"
+                className="flex items-center gap-1.5 text-xs transition-colors group"
                 style={{ color: post.liked_by_me ? '#e87878' : 'var(--text-3)' }}
               >
                 <Heart
                   size={14}
                   fill={post.liked_by_me ? 'currentColor' : 'none'}
-                  className="transition-all"
+                  className={`transition-all ${!post.liked_by_me ? 'group-hover:stroke-rose-400' : ''}`}
                   style={post.liked_by_me ? { filter: 'drop-shadow(0 0 4px #e87878aa)' } : {}}
                 />
-                <span>{post.likes_count > 0 ? post.likes_count : ''}</span>
+                <span className={!post.liked_by_me ? 'group-hover:text-rose-400' : ''}>
+                  {post.likes_count > 0 ? post.likes_count : ''}
+                </span>
               </button>
 
               <button
                 onClick={toggleBookmark}
-                className="flex items-center gap-1.5 text-xs transition-colors"
+                className="flex items-center gap-1.5 text-xs transition-colors group"
                 style={{ color: post.bookmarked_by_me ? 'var(--accent)' : 'var(--text-3)' }}
               >
                 <Bookmark
                   size={14}
                   fill={post.bookmarked_by_me ? 'currentColor' : 'none'}
+                  className={!post.bookmarked_by_me ? 'group-hover:stroke-sky-400' : ''}
                   style={post.bookmarked_by_me ? { filter: 'drop-shadow(0 0 4px var(--accent))' } : {}}
                 />
               </button>

@@ -2,14 +2,15 @@
  * request-verification
  *
  * フロントエンドから呼ばれる Edge Function。
- * 1. 認証コード（6桁）を生成し pending_verifications に保存
- * 2. 既存 Discord Bot の HTTP エンドポイントを叩いて DM 送信を依頼
+ * 1. Discord ユーザー名をボットに問い合わせて discord_id を解決
+ * 2. 認証コード（6桁）を生成し pending_verifications に保存
+ * 3. Discord Bot の HTTP エンドポイントを叩いて DM 送信を依頼
  *
  * 環境変数（Supabase ダッシュボード → Project Settings → Edge Functions → Secrets）:
- *   SUPABASE_URL            自動設定済み
+ *   SUPABASE_URL              自動設定済み
  *   SUPABASE_SERVICE_ROLE_KEY 自動設定済み
- *   DISCORD_BOT_ENDPOINT    例: https://your-bot-server.example.com/send-dm
- *   DISCORD_BOT_SECRET      Bot エンドポイントへの認証トークン（任意）
+ *   DISCORD_BOT_ENDPOINT      Bot サーバーのベース URL（例: https://your-bot-server.example.com）
+ *   DISCORD_BOT_SECRET        Bot エンドポイントへの認証トークン
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -25,14 +26,36 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { discord_id, display_name } = await req.json() as {
-      discord_id: string
+    const { username, display_name } = await req.json() as {
+      username: string
       display_name?: string
     }
 
-    if (!discord_id || !/^\d+$/.test(discord_id)) {
-      return json({ error: 'Discord ユーザー ID が無効です' }, 400)
+    if (!username?.trim()) {
+      return json({ error: 'Discord ユーザー名が必要です' }, 400)
     }
+
+    const botBase = Deno.env.get('DISCORD_BOT_ENDPOINT')
+    if (!botBase) {
+      return json({ error: 'Bot エンドポイントが設定されていません' }, 500)
+    }
+
+    const botHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+    const botSecret = Deno.env.get('DISCORD_BOT_SECRET')
+    if (botSecret) botHeaders['X-Bot-Secret'] = botSecret
+
+    // ユーザー名 → discord_id を解決
+    const resolveRes = await fetch(`${botBase}/resolve-user`, {
+      method: 'POST',
+      headers: botHeaders,
+      body: JSON.stringify({ username: username.trim() }),
+    })
+
+    if (!resolveRes.ok) {
+      return json({ error: 'Discord ユーザーが見つかりません。ユーザー名を確認してください。' }, 404)
+    }
+
+    const { discord_id } = await resolveRes.json() as { discord_id: string }
 
     // service_role クライアント（RLS をバイパス）
     const supabase = createClient(
@@ -71,20 +94,10 @@ Deno.serve(async (req) => {
       expires_at: expiresAt,
     })
 
-    // Discord Bot にDM送信を依頼
-    const botEndpoint = Deno.env.get('DISCORD_BOT_ENDPOINT')
-    if (!botEndpoint) {
-      return json({ error: 'Bot エンドポイントが設定されていません' }, 500)
-    }
-
-    const botRes = await fetch(botEndpoint, {
+    // Discord Bot に DM 送信を依頼
+    const botRes = await fetch(`${botBase}/send-dm`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(Deno.env.get('DISCORD_BOT_SECRET')
-          ? { 'X-Bot-Secret': Deno.env.get('DISCORD_BOT_SECRET')! }
-          : {}),
-      },
+      headers: botHeaders,
       body: JSON.stringify({
         discord_id,
         message: `**bobtter** の認証コード: \`${code}\`\n有効期限: 15分\n\nこのコードをサイトに入力してください。`,
@@ -97,7 +110,7 @@ Deno.serve(async (req) => {
       return json({ error: 'DM の送信に失敗しました。Discord ID を確認してください。' }, 502)
     }
 
-    return json({ ok: true, is_new_user: !existingProfile })
+    return json({ ok: true, is_new_user: !existingProfile, discord_id })
   } catch (err) {
     console.error(err)
     return json({ error: 'サーバーエラーが発生しました' }, 500)

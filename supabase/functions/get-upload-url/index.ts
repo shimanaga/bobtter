@@ -66,8 +66,11 @@ Deno.serve(async (req) => {
 
     // 署名付き PUT URL を生成（有効期限 5 分）
     const signedReq = await r2.sign(
-      new Request(endpoint, { method: 'PUT' }),
-      { aws: { signQuery: true }, headers: { 'X-Amz-Expires': '300' } },
+      new Request(endpoint, {
+        method: 'PUT',
+        headers: { 'X-Amz-Expires': '300' },
+      }),
+      { aws: { signQuery: true } },
     )
 
     return json({

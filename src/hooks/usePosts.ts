@@ -105,13 +105,16 @@ export function usePosts(channelSlug?: string, excludeChannelIds?: string[]) {
         if (channelSlug && data.channels.slug !== channelSlug) return
         if (!channelSlug && excludeChannelIds?.includes(data.channel_id)) return
 
-        setPosts(prev => [{
-          ...data,
-          likes_count: 0,
-          replies_count: 0,
-          liked_by_me: false,
-          bookmarked_by_me: false,
-        }, ...prev])
+        setPosts(prev => {
+          if (prev.some(p => p.id === data.id)) return prev
+          return [{
+            ...data,
+            likes_count: 0,
+            replies_count: 0,
+            liked_by_me: false,
+            bookmarked_by_me: false,
+          }, ...prev]
+        })
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' }, payload => {
         const { post_id, user_id } = payload.new as { post_id: string; user_id: string }

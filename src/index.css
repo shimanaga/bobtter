@@ -4,15 +4,15 @@
 
 @layer base {
   :root {
-    --bg-base:    #0e0d0c;
-    --bg-surface: #161412;
-    --bg-raised:  #1e1c19;
-    --border:     #2a2724;
-    --text-1:     #e8e0d8;
-    --text-2:     #9c9088;
-    --text-3:     #504b46;
-    --accent:     #e8a060;
-    --accent-dim: #3a2a18;
+    --bg-base:    #0c0e10;
+    --bg-surface: #111518;
+    --bg-raised:  #181d22;
+    --border:     #222a32;
+    --text-1:     #d8e8f0;
+    --text-2:     #7a98aa;
+    --text-3:     #3a4d58;
+    --accent:     #5bb8d4;
+    --accent-dim: #0c2030;
   }
 
   * {
@@ -95,7 +95,7 @@
     border: none;
   }
   .btn-primary:hover {
-    background-color: #f0b478;
+    background-color: #7acce0;
   }
   .btn-primary:active {
     transform: scale(0.97);
