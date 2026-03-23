@@ -152,6 +152,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
   const [loadingReplies, setLoadingReplies] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [expanded, setExpanded] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const displayName = post.is_anonymous ? '匿名' : (post.profiles?.display_name ?? '不明')
   const avatarText = post.is_anonymous ? '?' : (post.profiles?.display_name?.[0] ?? '?')
@@ -182,6 +183,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
     if (!profile || post.user_id !== profile.id) return
     await supabase.from('posts').delete().eq('id', post.id)
     onDelete?.(post.id)
+    setConfirmDelete(false)
   }
 
   async function toggleBookmark() {
@@ -238,7 +240,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
     setReplies(r => [...r, newReply])
     onUpdate({ ...post, replies_count: post.replies_count + 1 })
     window.dispatchEvent(new CustomEvent('reply-posted', { detail: { reply: newReply, parentId: post.id } }))
-    setShowReply(true)
+    setShowReply(false)
     setRepliesLoaded(true)
   }
 
@@ -248,6 +250,38 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
 
   return (
     <>
+      {confirmDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setConfirmDelete(false)}
+        >
+          <div
+            className="rounded-xl p-6 w-72 shadow-xl"
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-1)' }}>投稿を削除しますか？</p>
+            <p className="text-xs mb-5" style={{ color: 'var(--text-3)' }}>この操作は取り消せません。</p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="px-4 py-1.5 rounded-lg text-sm transition-colors"
+                style={{ color: 'var(--text-2)', backgroundColor: 'var(--bg-raised)' }}
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleDelete}
+                className="px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+                style={{ color: '#fff', backgroundColor: '#e05252' }}
+              >
+                削除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {lightboxIndex !== null && (
         <Lightbox
           urls={imageOnlyUrls}
@@ -372,7 +406,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
 
                 {profile?.id === post.user_id && onDelete && (
                   <button
-                    onClick={handleDelete}
+                    onClick={() => setConfirmDelete(true)}
                     className="flex items-center gap-1.5 text-xs transition-colors group ml-auto"
                     style={{ color: 'var(--text-3)' }}
                   >

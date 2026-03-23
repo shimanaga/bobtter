@@ -265,9 +265,13 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
   }
 
   function deleteItem(id: string) {
-    setItems(prev => prev.filter(item => {
-      if (item.type === 'post') return item.post.id !== id
-      return item.reply.id !== id && item.parent.id !== id
+    setItems(prev => prev.flatMap(item => {
+      if (item.type === 'post' && item.post.id === id) return []
+      if (item.type === 'thread') {
+        if (item.reply.id === id) return [{ type: 'post' as const, post: item.parent }]
+        if (item.parent.id === id) return []
+      }
+      return [item]
     }))
   }
 
