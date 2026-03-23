@@ -210,7 +210,6 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
         const newPost = payload.new as { id: string; parent_id: string | null; user_id: string | null; channel_id: string }
 
         if (newPost.parent_id) {
-          if (newPost.user_id === profile.id) return
           const { data } = await supabase.from('posts').select('*, profiles(*), channels(*)').eq('id', newPost.id).single()
           if (!data) return
           const reply: PostWithMeta = { ...data, likes_count: 0, replies_count: 0, liked_by_me: false, bookmarked_by_me: false }

@@ -67,23 +67,27 @@ export default function ThreadItem({ parent, reply, channels, onUpdate, onDelete
           }}
         />
       )}
-      <PostCard
-        post={parent}
-        channels={channels}
-        onUpdate={onUpdate}
-        onDelete={onDelete}
-        showChannel
-        threadLine
-        noBorderBottom
-      />
-      <PostCard
-        post={reply}
-        channels={channels}
-        onUpdate={onUpdate}
-        onDelete={onDelete}
-        showChannel={false}
-        depth={1}
-      />
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <PostCard
+          post={parent}
+          channels={channels}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+          showChannel
+          threadLine
+          noBorderBottom
+        />
+      </div>
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <PostCard
+          post={reply}
+          channels={channels}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+          showChannel={false}
+          depth={1}
+        />
+      </div>
     </div>
   )
 }
