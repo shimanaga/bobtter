@@ -35,11 +35,11 @@ export default function ThreadItem({ parent, reply, channels, onUpdate, onDelete
             position: 'absolute',
             left: '35px',
             top: '-16px',  // py-4 の下パディング分だけ上に伸ばして途切れを防ぐ
-            width: '18px', // 返信アバター左端(60px) - left(35px) - 余白(7px)
-            height: '32px', // 16px(パディング分) + 16px(アバター上端まで)
+            width: '26px', // 返信アバター左端(60px) - left(35px) - 1px
+            height: '48px', // 16px(パディング分) + 32px(アバター中心まで: py-4 + avatar/2)
             borderLeft: '1px solid var(--border)',
             borderBottom: '1px solid var(--border)',
-            borderBottomLeftRadius: '8px',
+            borderBottomLeftRadius: '12px',
             pointerEvents: 'none',
           }}
         />
