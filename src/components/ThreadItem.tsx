@@ -34,12 +34,12 @@ export default function ThreadItem({ parent, reply, channels, onUpdate, onDelete
           style={{
             position: 'absolute',
             left: '35px',
-            top: '-16px',   // py-4 の下パディング分だけ上に伸ばして途切れを防ぐ
-            width: '27px',
-            height: '44px', // 16px(パディング分) + 28px(カーブ分)
+            top: '-16px',  // py-4 の下パディング分だけ上に伸ばして途切れを防ぐ
+            width: '18px', // 返信アバター左端(60px) - left(35px) - 余白(7px)
+            height: '32px', // 16px(パディング分) + 16px(アバター上端まで)
             borderLeft: '1px solid var(--border)',
             borderBottom: '1px solid var(--border)',
-            borderBottomLeftRadius: '10px',
+            borderBottomLeftRadius: '8px',
             pointerEvents: 'none',
           }}
         />

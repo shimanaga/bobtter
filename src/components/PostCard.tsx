@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Heart, MessageCircle, Bookmark, Hash, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -147,6 +147,125 @@ function ImageGrid({ urls, onOpen }: { urls: string[]; onOpen: (imageIndex: numb
   )
 }
 
+const URL_REGEX = /https?:\/\/[^\s<>"（）「」【】。、！？]+/g
+
+function extractFirstUrl(text: string): string | null {
+  const match = text.match(URL_REGEX)
+  if (!match) return null
+  return match[0].replace(/[.,;:!?）」】。、！？]+$/, '')
+}
+
+function extractYouTubeId(url: string): string | null {
+  const patterns = [
+    /[?&]v=([^&#\s]+)/,
+    /youtu\.be\/([^?&#\s]+)/,
+    /\/shorts\/([^?&#\s]+)/,
+    /\/live\/([^?&#\s]+)/,
+  ]
+  for (const p of patterns) {
+    const m = url.match(p)
+    if (m) return m[1]
+  }
+  return null
+}
+
+interface OgpData {
+  title?: string | null
+  description?: string | null
+  image?: string | null
+  siteName?: string | null
+}
+const ogpCache = new Map<string, OgpData | null>()
+
+function RichText({ text }: { text: string }) {
+  const parts: React.ReactNode[] = []
+  let lastIndex = 0
+  const regex = new RegExp(URL_REGEX.source, 'g')
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(text)) !== null) {
+    const url = match[0].replace(/[.,;:!?）」】。、！？]+$/, '')
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index))
+    parts.push(
+      <a key={match.index} href={url} target="_blank" rel="noopener noreferrer"
+        onClick={e => e.stopPropagation()}
+        className="underline break-all"
+        style={{ color: 'var(--accent)' }}
+      >{url}</a>
+    )
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex))
+  return <>{parts}</>
+}
+
+function OgpCard({ url }: { url: string }) {
+  const [ogp, setOgp] = useState<OgpData | null | undefined>(
+    ogpCache.has(url) ? ogpCache.get(url) : undefined
+  )
+
+  useEffect(() => {
+    if (ogpCache.has(url)) return
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+    fetch(`${supabaseUrl}/functions/v1/get-ogp?url=${encodeURIComponent(url)}`, {
+      headers: { Authorization: `Bearer ${anonKey}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: OgpData | null) => {
+        const result = data?.title ? data : null
+        ogpCache.set(url, result)
+        setOgp(result)
+      })
+      .catch(() => { ogpCache.set(url, null); setOgp(null) })
+  }, [url])
+
+  if (!ogp?.title) return null
+
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer"
+      onClick={e => e.stopPropagation()}
+      className="mt-3 flex overflow-hidden rounded-xl hover:opacity-80 transition-opacity"
+      style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-raised)', textDecoration: 'none', display: 'flex' }}
+    >
+      {ogp.image && (
+        <img src={ogp.image} alt="" className="w-20 h-20 object-cover shrink-0"
+          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+      )}
+      <div className="p-3 min-w-0 flex flex-col justify-center gap-0.5">
+        {ogp.siteName && <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>{ogp.siteName}</p>}
+        <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-1)' }}>{ogp.title}</p>
+        {ogp.description && (
+          <p className="text-xs" style={{ color: 'var(--text-3)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {ogp.description}
+          </p>
+        )}
+        <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>
+          {(() => { try { return new URL(url).hostname } catch { return url } })()}
+        </p>
+      </div>
+    </a>
+  )
+}
+
+function UrlEmbed({ url }: { url: string }) {
+  const ytId = extractYouTubeId(url)
+  if (ytId) {
+    return (
+      <div className="mt-3 rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+        <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+          <iframe
+            src={`https://www.youtube.com/embed/${ytId}`}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      </div>
+    )
+  }
+  return <OgpCard url={url} />
+}
+
 export default function PostCard({ post, channels, onUpdate, onDelete, showChannel = true, depth = 0, threadLine = false, noBorderBottom = false, noNavigate = false }: PostCardProps) {
   const { profile } = useAuth()
   const navigate = useNavigate()
@@ -162,6 +281,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
   const avatarText = post.is_anonymous ? '?' : (post.profiles?.display_name?.[0] ?? '?')
   const shouldTruncate = post.content.length > TRUNCATE_AT
   const imageOnlyUrls = post.image_urls.filter(u => !isVideoUrl(u))
+  const firstUrl = extractFirstUrl(post.content)
 
   // 別の投稿の返信が開かれたら閉じる
   useEffect(() => {
@@ -349,7 +469,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
 
               {/* Content */}
               <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-1)' }}>
-                {shouldTruncate && !expanded ? post.content.slice(0, TRUNCATE_AT) + '…' : post.content}
+                <RichText text={shouldTruncate && !expanded ? post.content.slice(0, TRUNCATE_AT) + '…' : post.content} />
               </p>
               {shouldTruncate && (
                 <button
@@ -367,6 +487,9 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
                   <ImageGrid urls={post.image_urls} onOpen={i => setLightboxIndex(i)} />
                 </div>
               )}
+
+              {/* URL embed (YouTube or OGP card) */}
+              {firstUrl && <UrlEmbed url={firstUrl} />}
 
               {/* Actions */}
               <div className="flex items-center gap-5 mt-3" onClick={e => e.stopPropagation()}>

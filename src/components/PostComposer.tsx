@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Image, EyeOff, Eye, X, Send, Loader2, AlertTriangle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -27,6 +27,13 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
   const [compressing, setCompressing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // channels が後からロードされた場合に空の channelId を補完する
+  useEffect(() => {
+    if (!channelId && channels.length > 0) {
+      setChannelId(defaultChannelId ?? channels[0].id)
+    }
+  }, [channels.length, defaultChannelId])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const incoming = Array.from(e.target.files ?? [])
@@ -70,7 +77,7 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!content.trim() && mediaFiles.length === 0) return
-    if (!profile) return
+    if (!profile || !channelId) return
     setSubmitting(true)
     setError(null)
 
