@@ -250,14 +250,16 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
         setItems(prev => prev.map(item => applyLikeUpdate(item, post_id, 1)))
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, payload => {
+        console.log('[likes DELETE]', payload.old)
         const old = payload.old as Partial<{ post_id: string; user_id: string }>
-        if (!old.post_id) return
+        if (!old.post_id) { console.log('[likes DELETE] early return: no post_id'); return }
         if (old.user_id === profile.id) {
-          if (pendingLikeOps.has(old.post_id)) { pendingLikeOps.delete(old.post_id); return }
-          // 別端末からの自分のいいね取り消し → liked_by_me も false に
+          if (pendingLikeOps.has(old.post_id)) { console.log('[likes DELETE] pending skip'); pendingLikeOps.delete(old.post_id); return }
+          console.log('[likes DELETE] applying own unlike from other device')
           setItems(prev => prev.map(item => applyLikeUpdate(item, old.post_id!, -1, false)))
           return
         }
+        console.log('[likes DELETE] applying other user unlike')
         setItems(prev => prev.map(item => applyLikeUpdate(item, old.post_id!, -1)))
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, payload => {
