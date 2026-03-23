@@ -142,19 +142,17 @@ export interface Database {
       }
       likes: {
         Row: {
-          id: string
           post_id: string
           user_id: string
           created_at: string
         }
         Insert: {
-          id?: string
           post_id: string
           user_id: string
           created_at?: string
         }
         Update: {
-          id?: string
+          [_ in never]: never
         }
         Relationships: [
           {
