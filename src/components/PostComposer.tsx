@@ -13,63 +13,78 @@ interface PostComposerProps {
   compact?: boolean
 }
 
+const MAX_IMAGES = 4
+
 export default function PostComposer({ channels, defaultChannelId, parentId, onPosted, compact = false }: PostComposerProps) {
   const { profile } = useAuth()
   const [content, setContent] = useState('')
   const [channelId, setChannelId] = useState(defaultChannelId ?? channels[0]?.id ?? '')
   const [isAnonymous, setIsAnonymous] = useState(false)
-  const [mediaFile, setMediaFile] = useState<File | null>(null)
-  const [mediaPreview, setMediaPreview] = useState<string | null>(null)
-  const [isMediaVideo, setIsMediaVideo] = useState(false)
+  const [mediaFiles, setMediaFiles] = useState<File[]>([])
+  const [mediaPreviews, setMediaPreviews] = useState<string[]>([])
+  const [hasVideo, setHasVideo] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [compressing, setCompressing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const incoming = Array.from(e.target.files ?? [])
+    if (!incoming.length) return
     setError(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
 
-    if (isVideo(file)) {
-      if (file.size > VIDEO_MAX_BYTES) {
-        setError('動画は50MB以下にしてください')
-        return
-      }
-    } else {
-      if (file.size > 20 * 1024 * 1024) {
-        setError('画像は20MB以下にしてください')
-        return
-      }
+    if (incoming.some(f => isVideo(f))) {
+      const video = incoming.find(f => isVideo(f))!
+      if (video.size > VIDEO_MAX_BYTES) { setError('動画は50MB以下にしてください'); return }
+      mediaPreviews.forEach(u => URL.revokeObjectURL(u))
+      setMediaFiles([video])
+      setMediaPreviews([URL.createObjectURL(video)])
+      setHasVideo(true)
+      return
     }
 
-    setMediaFile(file)
-    setMediaPreview(URL.createObjectURL(file))
-    setIsMediaVideo(isVideo(file))
+    for (const f of incoming) {
+      if (f.size > 20 * 1024 * 1024) { setError('画像は20MB以下にしてください'); return }
+    }
+    const base = hasVideo ? [] : mediaFiles
+    const basePreviews = hasVideo ? [] : mediaPreviews
+    if (hasVideo) mediaPreviews.forEach(u => URL.revokeObjectURL(u))
+    const addCount = MAX_IMAGES - base.length
+    const next = [...base, ...incoming.slice(0, addCount)]
+    const nextPreviews = [...basePreviews, ...incoming.slice(0, addCount).map(f => URL.createObjectURL(f))]
+    setMediaFiles(next)
+    setMediaPreviews(nextPreviews)
+    setHasVideo(false)
   }
 
-  function removeMedia() {
-    setMediaFile(null)
-    setMediaPreview(null)
-    setIsMediaVideo(false)
+  function removeMedia(index: number) {
+    URL.revokeObjectURL(mediaPreviews[index])
+    const next = mediaFiles.filter((_, i) => i !== index)
+    setMediaFiles(next)
+    setMediaPreviews(prev => prev.filter((_, i) => i !== index))
+    if (next.length === 0) setHasVideo(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!content.trim() && !mediaFile) return
+    if (!content.trim() && mediaFiles.length === 0) return
     if (!profile) return
     setSubmitting(true)
     setError(null)
 
     try {
-      let imageUrl: string | null = null
-      if (mediaFile) {
-        if (!isMediaVideo) setCompressing(true)
+      let imageUrls: string[] = []
+      if (mediaFiles.length > 0) {
+        if (!hasVideo) setCompressing(true)
         const { data: { session } } = await supabase.auth.getSession()
-        imageUrl = isMediaVideo
-          ? await uploadVideo(mediaFile, session!.access_token)
-          : await uploadPostImage(mediaFile, session!.access_token)
+        imageUrls = await Promise.all(
+          mediaFiles.map(f => isVideo(f)
+            ? uploadVideo(f, session!.access_token)
+            : uploadPostImage(f, session!.access_token)
+          )
+        )
         setCompressing(false)
       }
 
@@ -79,7 +94,7 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
           user_id: isAnonymous ? null : profile.id,
           channel_id: channelId,
           content: content.trim(),
-          image_url: imageUrl,
+          image_urls: imageUrls,
           is_anonymous: isAnonymous,
           parent_id: parentId ?? null,
         })
@@ -100,7 +115,10 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
       })
 
       setContent('')
-      removeMedia()
+      mediaPreviews.forEach(u => URL.revokeObjectURL(u))
+      setMediaFiles([])
+      setMediaPreviews([])
+      setHasVideo(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : '投稿に失敗しました')
     } finally {
@@ -110,6 +128,7 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
   }
 
   const overLimit = content.length > 1000
+  const canAddMore = !hasVideo && mediaFiles.length < MAX_IMAGES
 
   return (
     <form
@@ -117,7 +136,6 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
       className={`rounded-xl p-4 ${compact ? 'mb-3' : 'mb-4'}`}
       style={{ backgroundColor: 'var(--bg-raised)', border: '1px solid var(--border)' }}
     >
-      {/* Channel selector */}
       {!parentId && !defaultChannelId && (
         <div className="mb-3">
           <select
@@ -135,48 +153,41 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
       <textarea
         value={content}
         onChange={e => setContent(e.target.value)}
-        placeholder={parentId ? '返信を書く...' : 'いまなにしてる？'}
+        placeholder={parentId ? '返信を書く...' : 'いまボブい？'}
         rows={compact ? 2 : 3}
         className="w-full bg-transparent resize-none focus:outline-none text-sm leading-relaxed"
         style={{ color: 'var(--text-1)' }}
       />
 
-      {/* 動画添付時の警告 */}
-      {isMediaVideo && (
+      {hasVideo && (
         <div
           className="flex items-start gap-2 rounded-lg px-3 py-2 mt-2 text-xs"
-          style={{
-            backgroundColor: 'rgba(232,160,96,0.1)',
-            border: '1px solid rgba(232,160,96,0.3)',
-            color: 'var(--accent)',
-          }}
+          style={{ backgroundColor: 'rgba(232,160,96,0.1)', border: '1px solid rgba(232,160,96,0.3)', color: 'var(--accent)' }}
         >
           <AlertTriangle size={13} className="shrink-0 mt-0.5" />
-          <span>動画の添付は推奨されていません。最大 50MB まで投稿できます。</span>
+          <span>動画の添付は推奨されていません。最大 50MB まで添付できます。</span>
         </div>
       )}
 
-      {/* メディアプレビュー */}
-      {mediaPreview && (
-        <div className="relative mt-2 inline-block">
-          {isMediaVideo ? (
-            <video
-              src={mediaPreview}
-              controls
-              className="max-h-48 rounded-lg"
-              style={{ border: '1px solid var(--border)' }}
-            />
-          ) : (
-            <img src={mediaPreview} alt="preview" className="max-h-40 rounded-lg object-cover" />
-          )}
-          <button
-            type="button"
-            onClick={removeMedia}
-            className="absolute top-1 right-1 rounded-full p-0.5"
-            style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: 'var(--text-1)' }}
-          >
-            <X size={13} />
-          </button>
+      {mediaPreviews.length > 0 && (
+        <div className="flex gap-1.5 mt-2 flex-wrap">
+          {mediaPreviews.map((preview, i) => (
+            <div key={i} className="relative shrink-0">
+              {hasVideo ? (
+                <video src={preview} className="h-20 rounded-lg" style={{ border: '1px solid var(--border)' }} />
+              ) : (
+                <img src={preview} alt="" className="h-20 w-20 object-cover rounded-lg" style={{ border: '1px solid var(--border)' }} />
+              )}
+              <button
+                type="button"
+                onClick={() => removeMedia(i)}
+                className="absolute top-0.5 right-0.5 rounded-full p-0.5"
+                style={{ backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff' }}
+              >
+                <X size={11} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -191,20 +202,26 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="btn-ghost p-1.5"
-            title="画像・動画を添付"
+            onClick={() => canAddMore && fileInputRef.current?.click()}
+            disabled={!canAddMore}
+            className="btn-ghost p-1.5 disabled:opacity-30"
+            title={canAddMore ? '画像・動画を添付' : `画像は${MAX_IMAGES}枚まで`}
           >
             <Image size={16} />
           </button>
-          {/* image/* + video/* で HEVC (.mov) も含むすべての動画を受け付ける */}
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*,video/*"
+            multiple
             onChange={handleFileChange}
             className="hidden"
           />
+          {!hasVideo && mediaFiles.length > 0 && (
+            <span className="text-xs" style={{ color: 'var(--text-3)' }}>
+              {mediaFiles.length}/{MAX_IMAGES}
+            </span>
+          )}
 
           <button
             type="button"
@@ -233,14 +250,14 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
           </span>
           <button
             type="submit"
-            disabled={submitting || compressing || overLimit || (!content.trim() && !mediaFile)}
+            disabled={submitting || compressing || overLimit || (!content.trim() && mediaFiles.length === 0)}
             className="btn-primary flex items-center gap-1.5 text-sm py-1.5 px-4"
           >
             {compressing
               ? <><Loader2 size={13} className="animate-spin" />圧縮中</>
               : submitting
               ? <><Loader2 size={13} className="animate-spin" />送信中</>
-              : <><Send size={13} />投稿</>}
+              : <><Send size={13} />ボブる</>}
           </button>
         </div>
       </div>

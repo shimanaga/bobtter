@@ -65,14 +65,15 @@ Deno.serve(async (req) => {
     const endpoint = `https://${accountId}.r2.cloudflarestorage.com/${bucket}/${key}`
 
     // 署名付き PUT URL を生成（有効期限 5 分）
+    // X-Amz-Expires はクエリパラメータとして URL に含める必要がある
+    const url = new URL(endpoint)
+    url.searchParams.set('X-Amz-Expires', '300')
     const signedReq = await r2.sign(
-      new Request(endpoint, {
-        method: 'PUT',
-        headers: { 'X-Amz-Expires': '300' },
-      }),
-      { aws: { signQuery: true } },
+      new Request(url.toString(), { method: 'PUT' }),
+      { aws: { signQuery: true, unsignedPayload: true } },
     )
 
+    console.log('upload_url:', signedReq.url)
     return json({
       upload_url: signedReq.url,
       public_url: `${publicBase}/${key}`,

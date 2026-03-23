@@ -93,7 +93,7 @@ export interface Database {
           user_id: string | null   // null = 匿名投稿
           channel_id: string
           content: string
-          image_url: string | null
+          image_urls: string[]
           is_anonymous: boolean
           parent_id: string | null
           created_at: string
@@ -103,7 +103,7 @@ export interface Database {
           user_id?: string | null
           channel_id: string
           content: string
-          image_url?: string | null
+          image_urls?: string[]
           is_anonymous?: boolean
           parent_id?: string | null
           created_at?: string
@@ -111,7 +111,7 @@ export interface Database {
         Update: {
           id?: string
           content?: string
-          image_url?: string | null
+          image_urls?: string[]
           is_anonymous?: boolean
         }
         Relationships: [

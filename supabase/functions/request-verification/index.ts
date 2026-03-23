@@ -26,10 +26,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { username, display_name } = await req.json() as {
-      username: string
-      display_name?: string
-    }
+    const { username } = await req.json() as { username: string }
 
     if (!username?.trim()) {
       return json({ error: 'Discord ユーザー名が必要です' }, 400)
@@ -55,7 +52,10 @@ Deno.serve(async (req) => {
       return json({ error: 'Discord ユーザーが見つかりません。ユーザー名を確認してください。' }, 404)
     }
 
-    const { discord_id } = await resolveRes.json() as { discord_id: string }
+    const { discord_id, display_name: discordDisplayName } = await resolveRes.json() as {
+      discord_id: string
+      display_name: string
+    }
 
     // service_role クライアント（RLS をバイパス）
     const supabase = createClient(
@@ -70,11 +70,6 @@ Deno.serve(async (req) => {
       .eq('discord_id', discord_id)
       .maybeSingle()
 
-    // 新規ユーザーで display_name が未指定の場合はエラー
-    if (!existingProfile && !display_name?.trim()) {
-      return json({ error: '初回登録時は表示名が必要です', is_new_user: true }, 400)
-    }
-
     // 古い未使用コードを削除（同一 Discord ID）
     await supabase
       .from('pending_verifications')
@@ -85,7 +80,8 @@ Deno.serve(async (req) => {
     // 6桁コード生成
     const code = String(Math.floor(100000 + Math.random() * 900000))
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
-    const resolvedName = existingProfile?.display_name ?? display_name ?? 'ユーザー'
+    // 初回登録時は Discord の表示名をそのまま使用
+    const resolvedName = existingProfile?.display_name ?? discordDisplayName ?? 'ユーザー'
 
     await supabase.from('pending_verifications').insert({
       discord_id,
@@ -100,7 +96,7 @@ Deno.serve(async (req) => {
       headers: botHeaders,
       body: JSON.stringify({
         discord_id,
-        message: `**bobtter** の認証コード: \`${code}\`\n有効期限: 15分\n\nこのコードをサイトに入力してください。`,
+        message: `**bobtter** の認証コード: \`${code}\`\n有効期限: 15分\n\nこのコードをbobtterにボブってください。`,
       }),
     })
 

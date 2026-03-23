@@ -81,7 +81,10 @@ async function uploadToR2(
 
   const uploadRes = await fetch(upload_url, {
     method: 'PUT',
-    headers: { 'Content-Type': file.type },
+    headers: {
+      'Content-Type': file.type,
+      'x-amz-content-sha256': 'UNSIGNED-PAYLOAD',
+    },
     body: file,
   })
 

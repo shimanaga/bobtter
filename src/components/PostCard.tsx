@@ -13,6 +13,51 @@ interface PostCardProps {
   isReply?: boolean
 }
 
+const GRID_H = 240
+
+function ImageGrid({ urls }: { urls: string[] }) {
+  const isVideoUrl = (u: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u)
+  const n = urls.length
+
+  if (n === 1) {
+    const url = urls[0]
+    return isVideoUrl(url) ? (
+      <video src={url} controls className="mt-3 rounded-xl w-full" style={{ maxHeight: GRID_H, border: '1px solid var(--border)' }} />
+    ) : (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="mt-3 block">
+        <img src={url} alt="添付画像" className="rounded-xl w-full object-cover" style={{ maxHeight: GRID_H, border: '1px solid var(--border)' }} />
+      </a>
+    )
+  }
+
+  const gridStyle: React.CSSProperties = {
+    display: 'grid',
+    height: GRID_H,
+    gap: 2,
+    gridTemplateColumns: '1fr 1fr',
+    gridTemplateRows: n <= 2 ? '1fr' : '1fr 1fr',
+    borderRadius: '0.75rem',
+    overflow: 'hidden',
+    marginTop: '0.75rem',
+  }
+
+  return (
+    <div style={gridStyle}>
+      {urls.map((url, i) => (
+        <a
+          key={i}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={n === 3 && i === 0 ? { gridRow: '1 / 3' } : {}}
+        >
+          <img src={url} alt={`添付画像 ${i + 1}`} className="w-full h-full object-cover" />
+        </a>
+      ))}
+    </div>
+  )
+}
+
 export default function PostCard({ post, channels, onUpdate, showChannel = true, isReply = false }: PostCardProps) {
   const { profile } = useAuth()
   const [showReply, setShowReply] = useState(false)
@@ -146,25 +191,7 @@ export default function PostCard({ post, channels, onUpdate, showChannel = true,
             </p>
 
             {/* 画像・動画 */}
-            {post.image_url && (
-              /\.(mp4|mov|webm|m4v)(\?|$)/i.test(post.image_url) ? (
-                <video
-                  src={post.image_url}
-                  controls
-                  className="mt-3 rounded-xl max-h-64 w-full"
-                  style={{ border: '1px solid var(--border)' }}
-                />
-              ) : (
-                <a href={post.image_url} target="_blank" rel="noopener noreferrer" className="mt-3 block">
-                  <img
-                    src={post.image_url}
-                    alt="添付画像"
-                    className="rounded-xl max-h-64 object-cover"
-                    style={{ border: '1px solid var(--border)' }}
-                  />
-                </a>
-              )
-            )}
+            {post.image_urls.length > 0 && <ImageGrid urls={post.image_urls} />}
 
             {/* Actions */}
             <div className="flex items-center gap-5 mt-3">

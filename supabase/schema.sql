@@ -170,6 +170,13 @@ $$;
 -- ============================================================
 -- Seed data: デフォルトチャンネル
 -- ============================================================
+-- ============================================================
+-- Migration: image_url → image_urls（複数画像対応）
+-- 既にスキーマを実行済みの場合はこの2行だけ SQL Editor で実行してください
+-- ============================================================
+-- alter table public.posts add column image_urls text[] not null default '{}';
+-- alter table public.posts drop column image_url;
+
 insert into public.channels (name, slug, description, position) values
   ('雑談',        'general', 'なんでも',             0),
   ('音ゲー',        'rg',   'たのしい',         1),
