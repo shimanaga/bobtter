@@ -17,6 +17,7 @@ interface PostCardProps {
   threadLine?: boolean
   noBorderBottom?: boolean
   noNavigate?: boolean
+  noRepliesList?: boolean
 }
 
 const GRID_H = 240
@@ -267,7 +268,7 @@ function UrlEmbed({ url }: { url: string }) {
   return <OgpCard url={url} />
 }
 
-export default function PostCard({ post, channels, onUpdate, onDelete, showChannel = true, depth = 0, threadLine = false, noBorderBottom = false, noNavigate = false }: PostCardProps) {
+export default function PostCard({ post, channels, onUpdate, onDelete, showChannel = true, depth = 0, threadLine = false, noBorderBottom = false, noNavigate = false, noRepliesList = false }: PostCardProps) {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [showReply, setShowReply] = useState(false)
@@ -563,7 +564,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
             {loadingReplies && (
               <p className="text-xs py-2" style={{ color: 'var(--text-3)' }}>読み込み中...</p>
             )}
-            {replies.map(r => (
+            {!noRepliesList && replies.map(r => (
               <PostCard
                 key={r.id}
                 post={r}

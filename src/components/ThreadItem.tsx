@@ -76,6 +76,7 @@ export default function ThreadItem({ parent, reply, channels, onUpdate, onDelete
           showChannel
           threadLine
           noBorderBottom
+          noRepliesList
         />
       </div>
       <div style={{ position: 'relative', zIndex: 1 }}>
