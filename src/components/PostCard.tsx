@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Heart, MessageCircle, Bookmark, Hash, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -13,6 +14,8 @@ interface PostCardProps {
   showChannel?: boolean
   depth?: number
   threadLine?: boolean
+  noBorderBottom?: boolean
+  noNavigate?: boolean
 }
 
 const GRID_H = 240
@@ -144,8 +147,9 @@ function ImageGrid({ urls, onOpen }: { urls: string[]; onOpen: (imageIndex: numb
   )
 }
 
-export default function PostCard({ post, channels, onUpdate, onDelete, showChannel = true, depth = 0, threadLine = false }: PostCardProps) {
+export default function PostCard({ post, channels, onUpdate, onDelete, showChannel = true, depth = 0, threadLine = false, noBorderBottom = false, noNavigate = false }: PostCardProps) {
   const { profile } = useAuth()
+  const navigate = useNavigate()
   const [showReply, setShowReply] = useState(false)
   const [replies, setReplies] = useState<PostWithMeta[]>([])
   const [repliesLoaded, setRepliesLoaded] = useState(false)
@@ -198,9 +202,8 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
   }
 
   async function loadReplies() {
-    if (showReply && repliesLoaded) { setShowReply(false); return }
+    if (showReply) { setShowReply(false); return }
     window.dispatchEvent(new CustomEvent('reply-opened', { detail: post.id }))
-    if (repliesLoaded) { setShowReply(true); return }
     setLoadingReplies(true)
     setShowReply(true)
 
@@ -290,8 +293,9 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
         />
       )}
       <article
-        className={`post-enter ${depth > 0 ? 'pl-10' : ''}`}
-        style={{ borderBottom: '1px solid var(--border)' }}
+        onClick={() => { if (!noNavigate) navigate(`/post/${post.id}`) }}
+        className={`post-enter ${depth > 0 ? 'pl-10' : ''} ${!noNavigate ? 'cursor-pointer' : ''}`}
+        style={noBorderBottom ? undefined : { borderBottom: '1px solid var(--border)' }}
       >
         <div className="px-5 py-4">
           <div className="flex gap-3">
@@ -349,7 +353,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
               </p>
               {shouldTruncate && (
                 <button
-                  onClick={() => setExpanded(v => !v)}
+                  onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
                   className="text-xs mt-1 transition-colors"
                   style={{ color: 'var(--accent)' }}
                 >
@@ -359,11 +363,13 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
 
               {/* 画像・動画 */}
               {post.image_urls.length > 0 && (
-                <ImageGrid urls={post.image_urls} onOpen={i => setLightboxIndex(i)} />
+                <div onClick={e => e.stopPropagation()}>
+                  <ImageGrid urls={post.image_urls} onOpen={i => setLightboxIndex(i)} />
+                </div>
               )}
 
               {/* Actions */}
-              <div className="flex items-center gap-5 mt-3">
+              <div className="flex items-center gap-5 mt-3" onClick={e => e.stopPropagation()}>
                 <button
                   onClick={loadReplies}
                   className="flex items-center gap-1.5 text-xs transition-colors group"
@@ -420,7 +426,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
 
         {/* Replies */}
         {showReply && (
-          <div className="pb-3 px-5">
+          <div className="pb-3 px-5" onClick={e => e.stopPropagation()}>
             <PostComposer
               channels={channels}
               defaultChannelId={post.channel_id}

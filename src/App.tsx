@@ -11,6 +11,7 @@ import ChannelPage from './pages/ChannelPage'
 import BookmarksPage from './pages/BookmarksPage'
 import ProfilePage from './pages/ProfilePage'
 import AdminPage from './pages/AdminPage'
+import PostDetailPage from './pages/PostDetailPage'
 
 function AppRoutes() {
   const { session, loading } = useAuth()
@@ -51,6 +52,7 @@ function AppRoutes() {
           <Route path="/bookmarks" element={<BookmarksPage channels={channels} />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/post/:id" element={<PostDetailPage channels={channels} />} />
         </Route>
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

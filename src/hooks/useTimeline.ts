@@ -215,10 +215,13 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
           if (!data) return
           const reply: PostWithMeta = { ...data, likes_count: 0, replies_count: 0, liked_by_me: false, bookmarked_by_me: false }
           setItems(prev => {
+            // 既に表示済みなら追加しない（replyHandlerと二重追加防止）
+            if (prev.some(item => item.type === 'thread' && item.reply.id === reply.id)) return prev
             let parent: PostWithMeta | undefined
             for (const item of prev) {
               if (item.type === 'post' && item.post.id === newPost.parent_id) { parent = { ...item.post, replies_count: item.post.replies_count + 1 }; break }
               if (item.type === 'thread' && item.reply.id === newPost.parent_id) { parent = { ...item.reply, replies_count: item.reply.replies_count + 1 }; break }
+              if (item.type === 'thread' && item.parent.id === newPost.parent_id) { parent = { ...item.parent, replies_count: item.parent.replies_count + 1 }; break }
             }
             if (!parent) return prev
             const filtered = prev.filter(item => !(item.type === 'post' && item.post.id === newPost.parent_id))
@@ -259,10 +262,13 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
     const replyHandler = (e: Event) => {
       const { reply, parentId } = (e as CustomEvent).detail as { reply: PostWithMeta; parentId: string }
       setItems(prev => {
+        // 既に表示済みなら追加しない
+        if (prev.some(item => item.type === 'thread' && item.reply.id === reply.id)) return prev
         let parent: PostWithMeta | undefined
         for (const item of prev) {
           if (item.type === 'post' && item.post.id === parentId) { parent = item.post; break }
           if (item.type === 'thread' && item.reply.id === parentId) { parent = item.reply; break }
+          if (item.type === 'thread' && item.parent.id === parentId) { parent = item.parent; break }
         }
         if (!parent) return prev
         const filtered = prev.filter(item => !(item.type === 'post' && item.post.id === parentId))

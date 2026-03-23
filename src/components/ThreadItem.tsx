@@ -19,6 +19,7 @@ export default function ThreadItem({ parent, reply, channels, onUpdate, onDelete
         onUpdate={onUpdate}
         onDelete={onDelete}
         showChannel
+        noBorderBottom
       />
       {/* 返信 */}
       <PostCard
