@@ -29,12 +29,16 @@ export default function PostComposer({ channels, defaultChannelId, parentId, rep
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // channels が後からロードされた場合に空の channelId を補完する
+  // 固定チャンネル指定が変わったら内部 state も追従させる
   useEffect(() => {
-    if (!channelId && channels.length > 0) {
-      setChannelId(defaultChannelId ?? channels[0].id)
+    if (defaultChannelId) {
+      if (channelId !== defaultChannelId) setChannelId(defaultChannelId)
+      return
     }
-  }, [channels.length, defaultChannelId])
+    if (!channelId && channels.length > 0) {
+      setChannelId(channels[0].id)
+    }
+  }, [channelId, channels, defaultChannelId])
 
   const selectedChannel = channels.find(ch => ch.id === channelId)
   const forceAnonymousByChannel = selectedChannel?.slug === 'abyss'
