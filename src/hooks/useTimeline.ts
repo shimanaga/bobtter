@@ -239,28 +239,26 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
           return [{ type: 'post', post }, ...prev]
         })
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' }, payload => {
-        const { post_id, user_id } = payload.new as { post_id: string; user_id: string }
-        if (user_id === profile.id) {
-          if (pendingLikeOps.has(post_id)) { pendingLikeOps.delete(post_id); return }
-          // 別端末からの自分のいいね → liked_by_me も true に
-          setItems(prev => prev.map(item => applyLikeUpdate(item, post_id, 1, true)))
-          return
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, payload => {
+        console.log('[likes *]', payload.eventType, payload)
+        if (payload.eventType === 'INSERT') {
+          const { post_id, user_id } = payload.new as { post_id: string; user_id: string }
+          if (user_id === profile.id) {
+            if (pendingLikeOps.has(post_id)) { pendingLikeOps.delete(post_id); return }
+            setItems(prev => prev.map(item => applyLikeUpdate(item, post_id, 1, true)))
+            return
+          }
+          setItems(prev => prev.map(item => applyLikeUpdate(item, post_id, 1)))
+        } else if (payload.eventType === 'DELETE') {
+          const old = payload.old as Partial<{ post_id: string; user_id: string }>
+          if (!old.post_id) { console.log('[likes DELETE] no post_id in old'); return }
+          if (old.user_id === profile.id) {
+            if (pendingLikeOps.has(old.post_id)) { pendingLikeOps.delete(old.post_id); return }
+            setItems(prev => prev.map(item => applyLikeUpdate(item, old.post_id!, -1, false)))
+            return
+          }
+          setItems(prev => prev.map(item => applyLikeUpdate(item, old.post_id!, -1)))
         }
-        setItems(prev => prev.map(item => applyLikeUpdate(item, post_id, 1)))
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, payload => {
-        console.log('[likes DELETE]', payload.old)
-        const old = payload.old as Partial<{ post_id: string; user_id: string }>
-        if (!old.post_id) { console.log('[likes DELETE] early return: no post_id'); return }
-        if (old.user_id === profile.id) {
-          if (pendingLikeOps.has(old.post_id)) { console.log('[likes DELETE] pending skip'); pendingLikeOps.delete(old.post_id); return }
-          console.log('[likes DELETE] applying own unlike from other device')
-          setItems(prev => prev.map(item => applyLikeUpdate(item, old.post_id!, -1, false)))
-          return
-        }
-        console.log('[likes DELETE] applying other user unlike')
-        setItems(prev => prev.map(item => applyLikeUpdate(item, old.post_id!, -1)))
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, payload => {
         const old = payload.old as Partial<{ id: string; user_id: string }>
