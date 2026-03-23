@@ -142,7 +142,8 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
     displayedIdsRef.current = new Set()
     cursorRef.current = null
 
-    const { data } = await buildQuery()
+    const { data, error } = await buildQuery()
+    console.log('[buildTimeline] data:', data?.length, 'error:', error)
     if (!data) { setLoading(false); return }
 
     setHasMore(data.length === PAGE_SIZE)
