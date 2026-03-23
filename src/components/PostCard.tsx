@@ -332,7 +332,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
 
     const { data } = await supabase
       .from('posts')
-      .select('*, profiles(*), channels(*)')
+      .select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
       .eq('parent_id', post.id)
       .order('created_at', { ascending: true })
 

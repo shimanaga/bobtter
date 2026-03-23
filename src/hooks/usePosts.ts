@@ -16,7 +16,7 @@ export function usePosts(channelSlug?: string, excludeChannelIds?: string[]) {
 
     let query = supabase
       .from('posts')
-      .select('*, profiles(*), channels(*)')
+      .select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
       .is('parent_id', null)
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1)
@@ -98,7 +98,7 @@ export function usePosts(channelSlug?: string, excludeChannelIds?: string[]) {
 
         const { data } = await supabase
           .from('posts')
-          .select('*, profiles(*), channels(*)')
+          .select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
           .eq('id', newPost.id)
           .single()
 

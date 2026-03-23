@@ -18,7 +18,7 @@ export default function BookmarksPage({ channels }: BookmarksPageProps) {
     async function load() {
       const { data } = await supabase
         .from('bookmarks')
-        .select('post_id, posts(*, profiles(*), channels(*))')
+        .select('post_id, posts(*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*))')
         .eq('user_id', profile!.id)
         .order('created_at', { ascending: false })
 

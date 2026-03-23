@@ -121,7 +121,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
   async function buildQuery(lt?: string) {
     let query = supabase
       .from('posts')
-      .select('*, profiles(*), channels(*)')
+      .select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
       .order('created_at', { ascending: false })
       .limit(PAGE_SIZE)
 
@@ -155,7 +155,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
       data.filter((p: any) => p.parent_id && !enrichedMap.has(p.parent_id)).map((p: any) => p.parent_id as string)
     )]
     if (missingParentIds.length > 0) {
-      const { data: parents } = await supabase.from('posts').select('*, profiles(*), channels(*)').in('id', missingParentIds)
+      const { data: parents } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)').in('id', missingParentIds)
       if (parents) {
         const parentMap = await enrichPosts(parents, profile.id)
         parentMap.forEach((v, k) => enrichedMap.set(k, v))
@@ -188,7 +188,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
         .map((p: any) => p.parent_id as string)
     )]
     if (missingParentIds.length > 0) {
-      const { data: parents } = await supabase.from('posts').select('*, profiles(*), channels(*)').in('id', missingParentIds)
+      const { data: parents } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)').in('id', missingParentIds)
       if (parents) {
         const parentMap = await enrichPosts(parents, profile.id)
         parentMap.forEach((v, k) => enrichedMap.set(k, v))
@@ -211,7 +211,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
         const newPost = payload.new as { id: string; parent_id: string | null; user_id: string | null; channel_id: string }
 
         if (newPost.parent_id) {
-          const { data } = await supabase.from('posts').select('*, profiles(*), channels(*)').eq('id', newPost.id).single()
+          const { data } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)').eq('id', newPost.id).single()
           if (!data) return
           const reply: PostWithMeta = { ...data, likes_count: 0, replies_count: 0, liked_by_me: false, bookmarked_by_me: false }
           setItems(prev => {
@@ -230,7 +230,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
           return
         }
 
-        const { data } = await supabase.from('posts').select('*, profiles(*), channels(*)').eq('id', newPost.id).single()
+        const { data } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)').eq('id', newPost.id).single()
         if (!data) return
         if (channelSlug && data.channels?.slug !== channelSlug) return
         if (!channelSlug && excludeChannelIds?.includes(data.channel_id)) return

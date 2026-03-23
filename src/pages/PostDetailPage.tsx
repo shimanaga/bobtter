@@ -59,12 +59,12 @@ export default function PostDetailPage({ channels }: Props) {
     setReplies([])
 
     const { data: postData } = await supabase
-      .from('posts').select('*, profiles(*), channels(*)')
+      .from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
       .eq('id', id!).single()
     if (!postData) { setLoading(false); return }
 
     const { data: repliesData } = await supabase
-      .from('posts').select('*, profiles(*), channels(*)')
+      .from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
       .eq('parent_id', id!).order('created_at', { ascending: true })
 
     const allData = [postData, ...(repliesData ?? [])]
@@ -72,7 +72,7 @@ export default function PostDetailPage({ channels }: Props) {
     let parentData: any = null
     if (postData.parent_id) {
       const { data } = await supabase
-        .from('posts').select('*, profiles(*), channels(*)')
+        .from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
         .eq('id', postData.parent_id).single()
       parentData = data
       if (data) allData.push(data)

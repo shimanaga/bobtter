@@ -105,7 +105,7 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
           is_anonymous: isAnonymous,
           parent_id: parentId ?? null,
         })
-        .select('*, profiles(*), channels(*)')
+        .select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
         .single()
 
       if (insertError) throw insertError
