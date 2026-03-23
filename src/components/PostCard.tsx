@@ -462,7 +462,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
                   <span className="font-mono text-xs" style={{ color: 'var(--text-3)' }}>
                     @Notice
                   </span>
-                ) : !post.is_anonymous && post.profiles?.username && (
+                ) : !post.is_anonymous && post.profiles?.username ? (
                   <span className="font-mono text-xs" style={{ color: 'var(--text-3)' }}>
                     @{post.profiles.username}
                   </span>
