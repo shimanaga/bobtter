@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { Camera, Check, Loader2, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -18,33 +18,22 @@ export default function ProfilePage() {
   const { allSorted, move, setVisibility } = useChannelPrefs()
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '')
   const [username, setUsername] = useState(profile?.username ?? '')
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
   const [bio, setBio] = useState(profile?.bio ?? '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [prefsError, setPrefsError] = useState<string | null>(null)
+  const usernameDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Avatar state
-  const [discordAvatarUrl, setDiscordAvatarUrl] = useState<string | null>(null)
+  const discordAvatarUrl = profile?.discord_avatar_url ?? null
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   const [pendingBlob, setPendingBlob] = useState<Blob | null>(null)
   const [pendingPreview, setPendingPreview] = useState<string | null>(null)
   const [pendingReset, setPendingReset] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      const user = data.user
-      if (!user) return
-      // Try multiple locations where Discord OAuth may store the avatar
-      const meta = user.user_metadata ?? {}
-      const identity = user.identities?.find(i => i.provider === 'discord')?.identity_data ?? {}
-      const url: string | undefined =
-        meta.avatar_url ?? meta.picture ?? identity.avatar_url ?? identity.picture
-      if (url) setDiscordAvatarUrl(url)
-    })
-  }, [])
 
   // Displayed avatar: pending crop > pending reset (discord) > saved
   const displayAvatarUrl = pendingBlob
@@ -54,6 +43,30 @@ export default function ProfilePage() {
     : (profile?.avatar_url ?? null)
 
   const avatarChanged = pendingBlob !== null || pendingReset
+
+  function handleUsernameChange(value: string) {
+    const cleaned = value.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 15)
+    setUsername(cleaned)
+
+    if (usernameDebounce.current) clearTimeout(usernameDebounce.current)
+
+    // 現在と同じなら確認不要
+    if (!cleaned || cleaned === profile?.username) {
+      setUsernameStatus('idle')
+      return
+    }
+
+    setUsernameStatus('checking')
+    usernameDebounce.current = setTimeout(async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', cleaned)
+        .neq('id', profile!.id)
+        .maybeSingle()
+      setUsernameStatus(data ? 'taken' : 'available')
+    }, 500)
+  }
 
   async function handleMove(id: string, dir: 'up' | 'down') {
     const err = await move(id, dir)
@@ -103,6 +116,22 @@ export default function ProfilePage() {
     setError(null)
 
     try {
+      // 保存直前にも重複確認（素早く入力→すぐ保存した場合の安全策）
+      if (username.trim() !== profile.username) {
+        const { data: taken } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', username.trim())
+          .neq('id', profile.id)
+          .maybeSingle()
+        if (taken) {
+          setUsernameStatus('taken')
+          setError('このユーザー名はすでに使われています')
+          setSaving(false)
+          return
+        }
+      }
+
       let newAvatarUrl: string | undefined
 
       if (pendingBlob) {
@@ -225,17 +254,27 @@ export default function ProfilePage() {
         </div>
         <div>
           <label className="block text-sm mb-1.5" style={{ color: 'var(--text-2)' }}>ユーザー名</label>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <span className="text-sm" style={{ color: 'var(--text-3)' }}>@</span>
             <input
               type="text"
               value={username}
-              onChange={e => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
+              onChange={e => handleUsernameChange(e.target.value)}
               required
               className="input-base flex-1"
-              maxLength={20}
+              maxLength={15}
               pattern="[a-zA-Z0-9_]+"
             />
+            <span className="text-xs font-mono w-16 text-right shrink-0" style={{
+              color: usernameStatus === 'available' ? '#6abf69'
+                : usernameStatus === 'taken' ? '#e87878'
+                : 'var(--text-3)',
+            }}>
+              {usernameStatus === 'checking' && '確認中…'}
+              {usernameStatus === 'available' && '✓ 使用可'}
+              {usernameStatus === 'taken' && '✗ 使用中'}
+              {usernameStatus === 'idle' && `${username.length}/15`}
+            </span>
           </div>
         </div>
         <div>
@@ -252,7 +291,7 @@ export default function ProfilePage() {
 
         {error && <p className="text-sm" style={{ color: '#e87878' }}>{error}</p>}
 
-        <button type="submit" disabled={saving} className="btn-primary flex items-center gap-2">
+        <button type="submit" disabled={saving || usernameStatus === 'taken' || usernameStatus === 'checking'} className="btn-primary flex items-center gap-2">
           {saving
             ? <><Loader2 size={14} className="animate-spin" />保存中...</>
             : saved

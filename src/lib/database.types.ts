@@ -9,6 +9,7 @@ export interface Database {
           username: string
           display_name: string
           avatar_url: string | null
+          discord_avatar_url: string | null
           bio: string | null
           is_admin: boolean
           discord_id: string
@@ -20,6 +21,7 @@ export interface Database {
           username: string
           display_name: string
           avatar_url?: string | null
+          discord_avatar_url?: string | null
           bio?: string | null
           is_admin?: boolean
           discord_id: string
@@ -210,16 +212,19 @@ export interface Database {
           channel_id: string
           position: number
           visibility: 'visible' | 'main_hidden' | 'hidden'
+          hide_replies: boolean
         }
         Insert: {
           user_id: string
           channel_id: string
           position: number
           visibility?: 'visible' | 'main_hidden' | 'hidden'
+          hide_replies?: boolean
         }
         Update: {
           position?: number
           visibility?: 'visible' | 'main_hidden' | 'hidden'
+          hide_replies?: boolean
         }
         Relationships: [
           {

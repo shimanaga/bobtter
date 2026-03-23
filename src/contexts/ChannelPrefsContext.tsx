@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
 import type { Channel, ChannelVisibility, ChannelWithPref } from '../lib/database.types'
 
-interface Pref { position: number; visibility: ChannelVisibility }
+interface Pref { position: number; visibility: ChannelVisibility; hideReplies: boolean }
 
 interface ChannelPrefsContextValue {
   /** サイドバー・ナビ用（'hidden' 以外のチャンネル、ユーザーの並び順） */
@@ -15,6 +15,8 @@ interface ChannelPrefsContextValue {
   /** 成功時は null、失敗時はエラーメッセージを返す */
   move: (channelId: string, dir: 'up' | 'down') => Promise<string | null>
   setVisibility: (channelId: string, visibility: ChannelVisibility) => Promise<string | null>
+  getHideReplies: (channelId: string) => boolean
+  setHideReplies: (channelId: string, value: boolean) => Promise<string | null>
 }
 
 const ChannelPrefsContext = createContext<ChannelPrefsContextValue | null>(null)
@@ -27,11 +29,15 @@ export function ChannelPrefsProvider({ channels, children }: { channels: Channel
     if (!profile || channels.length === 0) return
     supabase
       .from('user_channel_preferences')
-      .select('channel_id, position, visibility')
+      .select('channel_id, position, visibility, hide_replies')
       .eq('user_id', profile.id)
       .then(({ data }) => {
         const map = new Map<string, Pref>()
-        data?.forEach(p => map.set(p.channel_id, { position: p.position, visibility: p.visibility as ChannelVisibility }))
+        data?.forEach(p => map.set(p.channel_id, {
+          position: p.position,
+          visibility: p.visibility as ChannelVisibility,
+          hideReplies: p.hide_replies ?? false,
+        }))
         setPrefs(map)
       })
   }, [profile?.id, channels.length])
@@ -73,7 +79,11 @@ export function ChannelPrefsProvider({ channels, children }: { channels: Channel
     }))
     const { error } = await supabase.from('user_channel_preferences').upsert(upserts)
     if (error) return error.message
-    setPrefs(new Map(next.map((ch, i) => [ch.id, { position: i, visibility: ch.visibility }])))
+    setPrefs(new Map(next.map((ch, i) => [ch.id, {
+      position: i,
+      visibility: ch.visibility,
+      hideReplies: prefs.get(ch.id)?.hideReplies ?? false,
+    }])))
     return null
   }
 
@@ -90,14 +100,40 @@ export function ChannelPrefsProvider({ channels, children }: { channels: Channel
     if (error) return error.message
     setPrefs(prev => {
       const next = new Map(prev)
-      next.set(channelId, { position: currentPos, visibility })
+      next.set(channelId, { position: currentPos, visibility, hideReplies: prev.get(channelId)?.hideReplies ?? false })
+      return next
+    })
+    return null
+  }
+
+  function getHideReplies(channelId: string): boolean {
+    return prefs.get(channelId)?.hideReplies ?? false
+  }
+
+  async function setHideReplies(channelId: string, value: boolean): Promise<string | null> {
+    if (!profile) return null
+    const pref = prefs.get(channelId)
+    const currentPos = pref?.position ?? allSorted.findIndex(c => c.id === channelId)
+    const currentVisibility = pref?.visibility ?? 'visible'
+
+    const { error } = await supabase.from('user_channel_preferences').upsert({
+      user_id: profile.id,
+      channel_id: channelId,
+      position: currentPos,
+      visibility: currentVisibility,
+      hide_replies: value,
+    })
+    if (error) return error.message
+    setPrefs(prev => {
+      const next = new Map(prev)
+      next.set(channelId, { position: currentPos, visibility: currentVisibility, hideReplies: value })
       return next
     })
     return null
   }
 
   return (
-    <ChannelPrefsContext.Provider value={{ visibleChannels, mainExcludedIds, allSorted, move, setVisibility }}>
+    <ChannelPrefsContext.Provider value={{ visibleChannels, mainExcludedIds, allSorted, move, setVisibility, getHideReplies, setHideReplies }}>
       {children}
     </ChannelPrefsContext.Provider>
   )

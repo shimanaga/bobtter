@@ -100,7 +100,8 @@ Deno.serve(async (req) => {
         discord_id,
         username,
         display_name: verification.display_name,
-        avatar_url: avatarUrl,  // Discord アバター（null の場合はデフォルトアバター）
+        avatar_url: avatarUrl,
+        discord_avatar_url: avatarUrl,  // 初期アバターとして永続保存
       })
 
       if (profileErr) {

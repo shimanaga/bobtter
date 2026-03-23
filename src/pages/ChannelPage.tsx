@@ -1,5 +1,6 @@
 import { useParams } from 'react-router-dom'
 import { useTimeline } from '../hooks/useTimeline'
+import { useChannelPrefs } from '../contexts/ChannelPrefsContext'
 import PostCard from '../components/PostCard'
 import PostComposer from '../components/PostComposer'
 import ThreadItem from '../components/ThreadItem'
@@ -13,6 +14,12 @@ export default function ChannelPage({ channels }: ChannelPageProps) {
   const { slug } = useParams<{ slug: string }>()
   const channel = channels.find(c => c.slug === slug)
   const { items, loading, loadingMore, hasMore, fetchMore, updateItem, deleteItem, addPost } = useTimeline(slug)
+  const { getHideReplies, setHideReplies } = useChannelPrefs()
+
+  const hideReplies = channel ? getHideReplies(channel.id) : false
+  const displayItems = hideReplies
+    ? items.filter(item => item.type === 'post' && item.post.parent_id === null)
+    : items
 
   if (!channel) {
     return (
@@ -35,6 +42,23 @@ export default function ChannelPage({ channels }: ChannelPageProps) {
 
       <PostComposer channels={channels} defaultChannelId={channel.id} onPosted={addPost} />
 
+      <div className="flex mt-3 mb-1 rounded-lg overflow-hidden self-start" style={{ border: '1px solid var(--border)' }}>
+        {([false, true] as const).map(val => (
+          <button
+            key={String(val)}
+            onClick={() => setHideReplies(channel.id, val)}
+            className="text-xs px-3 py-1.5 transition-colors"
+            style={{
+              backgroundColor: hideReplies === val ? 'var(--accent-dim)' : 'transparent',
+              color: hideReplies === val ? 'var(--accent)' : 'var(--text-3)',
+              borderRight: !val ? '1px solid var(--border)' : undefined,
+            }}
+          >
+            {val ? '返信を非表示' : '全て表示'}
+          </button>
+        ))}
+      </div>
+
       {loading && items.length === 0 ? (
         <div className="space-y-4 mt-4">
           {[...Array(4)].map((_, i) => (
@@ -55,7 +79,7 @@ export default function ChannelPage({ channels }: ChannelPageProps) {
           className="rounded-xl overflow-hidden mt-4"
           style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}
         >
-          {items.map(item =>
+          {displayItems.map(item =>
             item.type === 'thread' ? (
               <ThreadItem
                 key={`thread-${item.parent.id}-${item.reply.id}`}
