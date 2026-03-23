@@ -96,6 +96,7 @@ export interface Database {
           channel_id: string
           content: string
           image_urls: string[]
+          is_notice: boolean
           is_anonymous: boolean
           parent_id: string | null
           created_at: string
@@ -106,6 +107,7 @@ export interface Database {
           channel_id: string
           content: string
           image_urls?: string[]
+          is_notice?: boolean
           is_anonymous?: boolean
           parent_id?: string | null
           created_at?: string
@@ -114,6 +116,7 @@ export interface Database {
           id?: string
           content?: string
           image_urls?: string[]
+          is_notice?: boolean
           is_anonymous?: boolean
         }
         Relationships: [

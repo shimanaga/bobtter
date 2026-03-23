@@ -9,13 +9,14 @@ interface PostComposerProps {
   channels: Channel[]
   defaultChannelId?: string
   parentId?: string
+  replyTargetIsAnonymous?: boolean
   onPosted: (post: PostWithMeta) => void
   compact?: boolean
 }
 
 const MAX_IMAGES = 4
 
-export default function PostComposer({ channels, defaultChannelId, parentId, onPosted, compact = false }: PostComposerProps) {
+export default function PostComposer({ channels, defaultChannelId, parentId, replyTargetIsAnonymous = false, onPosted, compact = false }: PostComposerProps) {
   const { profile } = useAuth()
   const [content, setContent] = useState('')
   const [channelId, setChannelId] = useState(defaultChannelId ?? channels[0]?.id ?? '')
@@ -34,6 +35,15 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
       setChannelId(defaultChannelId ?? channels[0].id)
     }
   }, [channels.length, defaultChannelId])
+
+  const selectedChannel = channels.find(ch => ch.id === channelId)
+  const forceAnonymousByChannel = selectedChannel?.slug === 'abyss'
+  const forceAnonymous = replyTargetIsAnonymous || forceAnonymousByChannel
+  const effectiveIsAnonymous = forceAnonymous || isAnonymous
+
+  useEffect(() => {
+    if (forceAnonymous) setIsAnonymous(true)
+  }, [forceAnonymous])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const incoming = Array.from(e.target.files ?? [])
@@ -98,11 +108,11 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
       const { data: post, error: insertError } = await supabase
         .from('posts')
         .insert({
-          user_id: isAnonymous ? null : profile.id,
+          user_id: effectiveIsAnonymous ? null : profile.id,
           channel_id: channelId,
           content: content.trim(),
           image_urls: imageUrls,
-          is_anonymous: isAnonymous,
+          is_anonymous: effectiveIsAnonymous,
           parent_id: parentId ?? null,
         })
         .select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
@@ -113,7 +123,7 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
       const channel = channels.find(c => c.id === channelId)!
       onPosted({
         ...post,
-        profiles: isAnonymous ? null : profile,
+        profiles: effectiveIsAnonymous ? null : profile,
         channels: channel,
         likes_count: 0,
         replies_count: 0,
@@ -176,6 +186,23 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
         </div>
       )}
 
+      {forceAnonymous && (
+        <div
+          className="flex items-start gap-2 rounded-lg px-3 py-2 mt-2 text-xs"
+          style={{ backgroundColor: 'rgba(124,95,176,0.12)', border: '1px solid rgba(180,141,224,0.35)', color: '#b48de0' }}
+        >
+          <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            {replyTargetIsAnonymous && (
+              <p>匿名投稿への返信は匿名になります</p>
+            )}
+            {forceAnonymousByChannel && (
+              <p>匿名投稿限定チャンネルです</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {mediaPreviews.length > 0 && (
         <div className="flex gap-1.5 mt-2 flex-wrap">
           {mediaPreviews.map((preview, i) => (
@@ -232,9 +259,10 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
 
           <button
             type="button"
-            onClick={() => setIsAnonymous(v => !v)}
+            onClick={() => !forceAnonymous && setIsAnonymous(v => !v)}
+            disabled={forceAnonymous}
             className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all"
-            style={isAnonymous ? {
+            style={effectiveIsAnonymous ? {
               borderColor: '#7c5fb0',
               color: '#b48de0',
               backgroundColor: '#1a1228',
@@ -243,8 +271,8 @@ export default function PostComposer({ channels, defaultChannelId, parentId, onP
               color: 'var(--text-3)',
             }}
           >
-            {isAnonymous ? <EyeOff size={11} /> : <Eye size={11} />}
-            {isAnonymous ? '匿名' : '匿名で投稿'}
+            {effectiveIsAnonymous ? <EyeOff size={11} /> : <Eye size={11} />}
+            {effectiveIsAnonymous ? '匿名' : '匿名で投稿'}
           </button>
         </div>
 

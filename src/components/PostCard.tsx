@@ -282,8 +282,9 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
   const [expanded, setExpanded] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const displayName = post.is_anonymous ? '匿名' : (post.profiles?.display_name ?? '不明')
-  const avatarText = post.is_anonymous ? '?' : (post.profiles?.display_name?.[0] ?? '?')
+  const isNotice = post.is_notice
+  const displayName = isNotice ? 'お知らせ' : post.is_anonymous ? '匿名' : (post.profiles?.display_name ?? '不明')
+  const avatarText = isNotice ? 'お' : post.is_anonymous ? '?' : (post.profiles?.display_name?.[0] ?? '?')
   const shouldTruncate = post.content.length > TRUNCATE_AT
   const imageOnlyUrls = post.image_urls.filter(u => !isVideoUrl(u))
   const firstUrl = extractFirstUrl(post.content)
@@ -432,13 +433,15 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
                 data-thread-avatar=""
                 className="w-8 h-8 rounded-full flex items-center justify-center font-display font-bold text-sm overflow-hidden"
                 style={{
-                  background: post.is_anonymous
+                  background: isNotice
+                    ? 'linear-gradient(135deg, rgba(255,205,110,0.22) 0%, rgba(255,162,89,0.3) 100%)'
+                    : post.is_anonymous
                     ? 'linear-gradient(135deg, var(--bg-raised) 0%, var(--ink-600) 100%)'
                     : `linear-gradient(135deg, var(--accent-dim) 0%, color-mix(in srgb, var(--accent) 40%, transparent) 100%)`,
-                  color: post.is_anonymous ? 'var(--text-3)' : 'var(--accent)',
+                  color: isNotice ? '#ffc86f' : post.is_anonymous ? 'var(--text-3)' : 'var(--accent)',
                 }}
               >
-                {post.profiles?.avatar_url && !post.is_anonymous ? (
+                {post.profiles?.avatar_url && !post.is_anonymous && !isNotice ? (
                   <img src={post.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
                 ) : (
                   avatarText.toUpperCase()
@@ -455,11 +458,15 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
                 <span className="font-display font-semibold text-sm" style={{ color: 'var(--text-1)' }}>
                   {displayName}
                 </span>
-                {!post.is_anonymous && post.profiles?.username && (
+                {isNotice ? (
+                  <span className="font-mono text-xs" style={{ color: 'var(--text-3)' }}>
+                    @Notice
+                  </span>
+                ) : !post.is_anonymous && post.profiles?.username && (
                   <span className="font-mono text-xs" style={{ color: 'var(--text-3)' }}>
                     @{post.profiles.username}
                   </span>
-                )}
+                ) : null}
                 <span className="ml-auto font-mono text-xs" style={{ color: 'var(--text-3)' }}>
                   {timeStr}
                 </span>
@@ -562,6 +569,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
               channels={channels}
               defaultChannelId={post.channel_id}
               parentId={post.id}
+              replyTargetIsAnonymous={post.is_anonymous}
               onPosted={handleReplyPosted}
               compact
             />

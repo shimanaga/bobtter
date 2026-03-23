@@ -25,6 +25,10 @@ export default function AdminPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editState, setEditState] = useState<EditState>({ name: '', description: '' })
   const [saving, setSaving] = useState(false)
+  const [noticeChannelId, setNoticeChannelId] = useState('')
+  const [noticeContent, setNoticeContent] = useState('')
+  const [postingNotice, setPostingNotice] = useState(false)
+  const [noticeStatus, setNoticeStatus] = useState<string | null>(null)
 
   useEffect(() => {
     if (!profile?.is_admin) { navigate('/'); return }
@@ -33,6 +37,13 @@ export default function AdminPage() {
       setLoading(false)
     })
   }, [profile, navigate])
+
+  useEffect(() => {
+    if (channels.length === 0) return
+    if (noticeChannelId && channels.some(ch => ch.id === noticeChannelId)) return
+    const fallback = channels.find(ch => ch.slug === 'general')?.id ?? channels[0].id
+    setNoticeChannelId(fallback)
+  }, [channels, noticeChannelId])
 
   async function addChannel() {
     if (!newName.trim() || !newSlug.trim()) return
@@ -94,6 +105,33 @@ export default function AdminPage() {
     setSaving(false)
   }
 
+  async function postNotice() {
+    if (!profile || !noticeChannelId || !noticeContent.trim()) return
+    setPostingNotice(true)
+    setError(null)
+    setNoticeStatus(null)
+
+    const { error } = await supabase
+      .from('posts')
+      .insert({
+        user_id: profile.id,
+        channel_id: noticeChannelId,
+        content: noticeContent.trim(),
+        image_urls: [],
+        is_notice: true,
+        is_anonymous: false,
+        parent_id: null,
+      })
+
+    if (error) {
+      setError(error.message)
+    } else {
+      setNoticeContent('')
+      setNoticeStatus('お知らせを投稿しました')
+    }
+    setPostingNotice(false)
+  }
+
   if (loading) {
     return <div className="max-w-xl mx-auto py-16 px-4 text-center" style={{ color: 'var(--text-3)' }}>読み込み中...</div>
   }
@@ -101,8 +139,50 @@ export default function AdminPage() {
   return (
     <div className="max-w-2xl mx-auto py-6 px-4">
       <h2 className="font-display font-bold text-lg mb-6" style={{ color: 'var(--text-1)' }}>
-        チャンネル管理
+        管理
       </h2>
+
+      <div
+        className="rounded-xl p-5 mb-6"
+        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+      >
+        <p className="font-display font-semibold text-sm mb-4" style={{ color: 'var(--text-1)' }}>
+          お知らせを投稿
+        </p>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>チャンネル</label>
+            <select
+              value={noticeChannelId}
+              onChange={e => setNoticeChannelId(e.target.value)}
+              className="input-base w-full text-sm"
+            >
+              {channels.map(ch => (
+                <option key={ch.id} value={ch.id}>{ch.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>内容</label>
+            <textarea
+              value={noticeContent}
+              onChange={e => setNoticeContent(e.target.value)}
+              rows={4}
+              className="input-base w-full text-sm resize-none"
+              placeholder="お知らせ内容"
+            />
+          </div>
+        </div>
+        {noticeStatus && <p className="text-sm mt-3" style={{ color: 'var(--accent)' }}>{noticeStatus}</p>}
+        <button
+          onClick={postNotice}
+          disabled={postingNotice || !noticeContent.trim() || !noticeChannelId}
+          className="btn-primary flex items-center gap-1.5 text-sm mt-4"
+        >
+          <Plus size={14} />
+          {postingNotice ? '投稿中...' : 'お知らせを流す'}
+        </button>
+      </div>
 
       {/* Existing channels */}
       <div

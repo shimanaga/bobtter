@@ -147,6 +147,7 @@ export default function PostDetailPage({ channels }: Props) {
             channels={channels}
             defaultChannelId={post.channel_id}
             parentId={post.id}
+            replyTargetIsAnonymous={post.is_anonymous}
             onPosted={handleReplyPosted}
             compact
           />

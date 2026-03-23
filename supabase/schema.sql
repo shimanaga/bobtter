@@ -52,6 +52,7 @@ create table public.posts (
   channel_id   uuid not null references public.channels(id) on delete cascade,
   content      text not null check (char_length(content) <= 1000),
   image_url    text,  -- 画像・動画どちらも格納（Cloudflare R2 公開 URL）
+  is_notice    boolean not null default false,
   is_anonymous boolean not null default false,
   parent_id    uuid references public.posts(id) on delete cascade,
   created_at   timestamptz not null default now()
@@ -176,6 +177,7 @@ $$;
 -- ============================================================
 -- alter table public.posts add column image_urls text[] not null default '{}';
 -- alter table public.posts drop column image_url;
+-- alter table public.posts add column is_notice boolean not null default false;
 
 insert into public.channels (name, slug, description, position) values
   ('雑談',        'general', 'なんでも',             0),
