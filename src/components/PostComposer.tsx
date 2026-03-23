@@ -28,6 +28,7 @@ export default function PostComposer({ channels, defaultChannelId, parentId, rep
   const [compressing, setCompressing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const prevForceAnonymousRef = useRef(false)
 
   // 固定チャンネル指定が変わったら内部 state も追従させる
   useEffect(() => {
@@ -46,7 +47,12 @@ export default function PostComposer({ channels, defaultChannelId, parentId, rep
   const effectiveIsAnonymous = forceAnonymous || isAnonymous
 
   useEffect(() => {
-    if (forceAnonymous) setIsAnonymous(true)
+    if (forceAnonymous) {
+      setIsAnonymous(true)
+    } else if (prevForceAnonymousRef.current) {
+      setIsAnonymous(false)
+    }
+    prevForceAnonymousRef.current = forceAnonymous
   }, [forceAnonymous])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
