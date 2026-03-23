@@ -86,9 +86,10 @@ export function usePosts(channelSlug?: string, excludeChannelIds?: string[]) {
     const channel = supabase
       .channel('posts-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async payload => {
-        const newPost = payload.new as { id: string; parent_id: string | null }
+        const newPost = payload.new as { id: string; parent_id: string | null; user_id: string | null }
         if (newPost.parent_id) {
-          // 返信が届いたら親投稿の replies_count を +1
+          // 自分の返信はオプティミスティック更新済みなのでスキップ
+          if (newPost.user_id === profile.id) return
           setPosts(prev => prev.map(p =>
             p.id === newPost.parent_id ? { ...p, replies_count: p.replies_count + 1 } : p
           ))
