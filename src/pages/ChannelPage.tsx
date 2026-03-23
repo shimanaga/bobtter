@@ -20,8 +20,8 @@ export default function ChannelPage({ channels }: ChannelPageProps) {
   const displayItems = hideReplies
     ? items.flatMap(item => {
         if (item.type === 'post') return item.post.parent_id === null ? [item] : []
-        // thread: parentをスタンドアロン投稿として表示、replyは非表示
-        return [{ type: 'post' as const, post: item.parent }]
+        // thread: parentがdepth 0の場合のみ単体表示、depth 1+のthreadは丸ごと非表示
+        return item.parent.parent_id === null ? [{ type: 'post' as const, post: item.parent }] : []
       })
     : items
 
