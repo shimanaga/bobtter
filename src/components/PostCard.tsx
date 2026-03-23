@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { pendingLikeOps } from '../hooks/useTimeline'
 import { Heart, MessageCircle, Bookmark, Hash, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -40,7 +41,7 @@ function Lightbox({ urls, initialIndex, onClose }: { urls: string[]; initialInde
     return () => window.removeEventListener('keydown', handler)
   }, [urls.length, onClose])
 
-  return (
+  const content = (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ backgroundColor: 'rgba(0,0,0,0.92)' }}
@@ -94,6 +95,8 @@ function Lightbox({ urls, initialIndex, onClose }: { urls: string[]; initialInde
       )}
     </div>
   )
+
+  return createPortal(content, document.body)
 }
 
 function ImageGrid({ urls, onOpen }: { urls: string[]; onOpen: (imageIndex: number) => void }) {
@@ -376,7 +379,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
 
   return (
     <>
-      {confirmDelete && (
+      {confirmDelete && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
           style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
@@ -406,7 +409,8 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       {lightboxIndex !== null && (
         <Lightbox

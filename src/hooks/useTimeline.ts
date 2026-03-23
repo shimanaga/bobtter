@@ -259,11 +259,11 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
           setItems(prev => prev.map(item => applyLikeUpdate(item, old.post_id!, -1)))
         }
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, payload => {
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, async payload => {
         const old = payload.old as Partial<{ id: string; user_id: string }>
         if (!old.id) return
         if (old.user_id === profile.id) return // 自分の削除はhandleDelete側で処理済み
-        setItems(prev => removePostById(prev, old.id!))
+        await buildTimeline()
       })
       .subscribe()
 
@@ -289,7 +289,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
       supabase.removeChannel(channel)
       window.removeEventListener('reply-posted', replyHandler)
     }
-  }, [profile, channelSlug, excludeChannelIds?.join(',')])
+  }, [profile, channelSlug, excludeChannelIds?.join(','), buildTimeline])
 
   function updateItem(updated: PostWithMeta) {
     setItems(prev => prev.map(item => {
