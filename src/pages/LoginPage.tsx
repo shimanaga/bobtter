@@ -103,7 +103,7 @@ export default function LoginPage() {
           <h1 className="font-display text-5xl font-extrabold tracking-tight mb-1" style={{ color: 'var(--accent)' }}>
             bobtter
           </h1>
-          <p className="text-sm" style={{ color: 'var(--text-3)' }}>招待制の身内 SNS</p>
+          <p className="text-sm" style={{ color: 'var(--text-3)' }}>完全招待制。ボブいSNS。</p>
         </div>
 
         <div
@@ -149,8 +149,8 @@ export default function LoginPage() {
               </button>
 
               <p className="text-xs text-center" style={{ color: 'var(--text-3)' }}>
-                DM が届かない場合は Discord の設定 &gt; プライバシー・安全 &gt;<br />
-                「サーバーメンバーからのDMを許可」をオンにしてください
+                DM が届かない場合は Discord の設定 &gt; コンテンツ&ソーシャル &gt;<br />
+                「サーバーの他のメンバーからのDMを許可」をオンにしてください。
               </p>
             </form>
           ) : (
