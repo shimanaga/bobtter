@@ -18,11 +18,24 @@ export default function ChannelPage({ channels }: ChannelPageProps) {
 
   const hideReplies = channel ? getHideReplies(channel.id) : false
   const displayItems = hideReplies
-    ? items.flatMap(item => {
-        if (item.type === 'post') return item.post.parent_id === null ? [item] : []
-        // thread: parentがdepth 0の場合のみ単体表示、depth 1+のthreadは丸ごと非表示
-        return item.parent.parent_id === null ? [{ type: 'post' as const, post: item.parent }] : []
-      })
+    ? (() => {
+        const seenTopLevelIds = new Set<string>()
+        return items.flatMap(item => {
+          if (item.type === 'post') {
+            if (item.post.parent_id !== null || seenTopLevelIds.has(item.post.id)) return []
+            seenTopLevelIds.add(item.post.id)
+            return [item]
+          }
+          // thread: parentがdepth 0の場合のみ単体表示し、同じ親は1回だけ出す
+          if (item.parent.parent_id !== null || seenTopLevelIds.has(item.parent.id)) return []
+          seenTopLevelIds.add(item.parent.id)
+          return [{ type: 'post' as const, post: item.parent }]
+        }).sort((a, b) => {
+          const aTime = new Date(a.post.created_at).getTime()
+          const bTime = new Date(b.post.created_at).getTime()
+          return bTime - aTime
+        })
+      })()
     : items
 
   if (!channel) {
@@ -73,7 +86,7 @@ export default function ChannelPage({ channels }: ChannelPageProps) {
             />
           ))}
         </div>
-      ) : items.length === 0 ? (
+      ) : displayItems.length === 0 ? (
         <div className="text-center py-16" style={{ color: 'var(--text-3)' }}>
           <p className="font-display text-4xl mb-3">✦</p>
           <p className="text-sm">このチャンネルにはまだ投稿がありません</p>
