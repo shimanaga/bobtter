@@ -10,7 +10,7 @@ interface HomePageProps {
 
 export default function HomePage({ channels }: HomePageProps) {
   const { mainExcludedIds } = useChannelPrefs()
-  const { posts, loading, hasMore, fetchMore, updatePost, addPost } = usePosts(undefined, mainExcludedIds)
+  const { posts, loading, hasMore, fetchMore, updatePost, addPost, deletePost } = usePosts(undefined, mainExcludedIds)
 
   return (
     <div className="max-w-xl mx-auto py-6 px-4">
@@ -47,6 +47,7 @@ export default function HomePage({ channels }: HomePageProps) {
               post={post}
               channels={channels}
               onUpdate={updatePost}
+              onDelete={deletePost}
               showChannel
             />
           ))}

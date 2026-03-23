@@ -73,7 +73,6 @@ Deno.serve(async (req) => {
       { aws: { signQuery: true, unsignedPayload: true } },
     )
 
-    console.log('upload_url:', signedReq.url)
     return json({
       upload_url: signedReq.url,
       public_url: `${publicBase}/${key}`,

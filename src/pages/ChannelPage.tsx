@@ -11,7 +11,7 @@ interface ChannelPageProps {
 export default function ChannelPage({ channels }: ChannelPageProps) {
   const { slug } = useParams<{ slug: string }>()
   const channel = channels.find(c => c.slug === slug)
-  const { posts, loading, hasMore, fetchMore, updatePost, addPost } = usePosts(slug)
+  const { posts, loading, hasMore, fetchMore, updatePost, addPost, deletePost } = usePosts(slug)
 
   if (!channel) {
     return (
@@ -61,6 +61,7 @@ export default function ChannelPage({ channels }: ChannelPageProps) {
               post={post}
               channels={channels}
               onUpdate={updatePost}
+              onDelete={deletePost}
               showChannel={false}
             />
           ))}

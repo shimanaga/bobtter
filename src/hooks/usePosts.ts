@@ -145,5 +145,9 @@ export function usePosts(channelSlug?: string, excludeChannelIds?: string[]) {
     setPosts(prev => [post, ...prev])
   }
 
-  return { posts, loading, hasMore, fetchMore: () => fetchPosts(posts.length), updatePost, addPost }
+  function deletePost(id: string) {
+    setPosts(prev => prev.filter(p => p.id !== id))
+  }
+
+  return { posts, loading, hasMore, fetchMore: () => fetchPosts(posts.length), updatePost, addPost, deletePost }
 }

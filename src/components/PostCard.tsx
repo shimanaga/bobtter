@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Heart, MessageCircle, Bookmark, Hash } from 'lucide-react'
+import { Heart, MessageCircle, Bookmark, Hash, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import type { Channel, PostWithMeta } from '../lib/database.types'
@@ -9,6 +9,7 @@ interface PostCardProps {
   post: PostWithMeta
   channels: Channel[]
   onUpdate: (updated: PostWithMeta) => void
+  onDelete?: (id: string) => void
   showChannel?: boolean
   isReply?: boolean
 }
@@ -58,7 +59,7 @@ function ImageGrid({ urls }: { urls: string[] }) {
   )
 }
 
-export default function PostCard({ post, channels, onUpdate, showChannel = true, isReply = false }: PostCardProps) {
+export default function PostCard({ post, channels, onUpdate, onDelete, showChannel = true, isReply = false }: PostCardProps) {
   const { profile } = useAuth()
   const [showReply, setShowReply] = useState(false)
   const [replies, setReplies] = useState<PostWithMeta[]>([])
@@ -77,6 +78,12 @@ export default function PostCard({ post, channels, onUpdate, showChannel = true,
       await supabase.from('likes').insert({ post_id: post.id, user_id: profile.id })
       onUpdate({ ...post, liked_by_me: true, likes_count: post.likes_count + 1 })
     }
+  }
+
+  async function deletePost() {
+    if (!profile || post.user_id !== profile.id) return
+    await supabase.from('posts').delete().eq('id', post.id)
+    onDelete?.(post.id)
   }
 
   async function toggleBookmark() {
@@ -237,6 +244,16 @@ export default function PostCard({ post, channels, onUpdate, showChannel = true,
                   style={post.bookmarked_by_me ? { filter: 'drop-shadow(0 0 4px var(--accent))' } : {}}
                 />
               </button>
+
+              {profile?.id === post.user_id && onDelete && (
+                <button
+                  onClick={deletePost}
+                  className="flex items-center gap-1.5 text-xs transition-colors group ml-auto"
+                  style={{ color: 'var(--text-3)' }}
+                >
+                  <Trash2 size={14} className="group-hover:stroke-red-400 transition-colors" />
+                </button>
+              )}
             </div>
           </div>
         </div>

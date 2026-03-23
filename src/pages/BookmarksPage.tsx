@@ -59,6 +59,10 @@ export default function BookmarksPage({ channels }: BookmarksPageProps) {
     }
   }
 
+  function deletePost(id: string) {
+    setPosts(prev => prev.filter(p => p.id !== id))
+  }
+
   return (
     <div className="max-w-xl mx-auto py-6 px-4">
       <h2 className="font-display font-bold text-lg mb-6" style={{ color: 'var(--text-1)' }}>
@@ -79,7 +83,7 @@ export default function BookmarksPage({ channels }: BookmarksPageProps) {
       ) : (
         <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}>
           {posts.map(post => (
-            <PostCard key={post.id} post={post} channels={channels} onUpdate={updatePost} showChannel />
+            <PostCard key={post.id} post={post} channels={channels} onUpdate={updatePost} onDelete={deletePost} showChannel />
           ))}
         </div>
       )}
