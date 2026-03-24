@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { pendingLikeOps } from '../hooks/useTimeline'
+import { pendingLikeOps, pendingReactionOps } from '../hooks/useTimeline'
+import ReactionBar from './ReactionBar'
 import { Heart, MessageCircle, Bookmark, Hash, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -317,6 +318,31 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
     setConfirmDelete(false)
   }
 
+  async function toggleReaction(type: string) {
+    if (!profile) return
+    const existing = post.reactions.find(r => r.type === type)
+    const key = `${post.id}:${type}`
+    pendingReactionOps.add(key)
+    if (existing?.reacted_by_me) {
+      await supabase.from('reactions').delete().match({ post_id: post.id, user_id: profile.id, reaction_type: type })
+      const newCount = existing.count - 1
+      onUpdate({
+        ...post,
+        reactions: newCount <= 0
+          ? post.reactions.filter(r => r.type !== type)
+          : post.reactions.map(r => r.type !== type ? r : { ...r, count: newCount, reacted_by_me: false }),
+      })
+    } else {
+      await supabase.from('reactions').insert({ post_id: post.id, user_id: profile.id, reaction_type: type })
+      onUpdate({
+        ...post,
+        reactions: existing
+          ? post.reactions.map(r => r.type !== type ? r : { ...r, count: r.count + 1, reacted_by_me: true })
+          : [...post.reactions, { type, count: 1, reacted_by_me: true }],
+      })
+    }
+  }
+
   async function toggleBookmark() {
     if (!profile) return
     if (post.bookmarked_by_me) {
@@ -360,6 +386,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
         replies_count: replyCountMap[p.id] ?? 0,
         liked_by_me: likedSet.has(p.id),
         bookmarked_by_me: bookmarkedSet.has(p.id),
+        reactions: [],
       })))
       setRepliesLoaded(true)
     }
@@ -506,8 +533,13 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
               {/* URL embed (YouTube or OGP card) */}
               {firstUrl && <UrlEmbed url={firstUrl} />}
 
+              {/* Reactions */}
+              <div className="mt-3" onClick={e => e.stopPropagation()}>
+                <ReactionBar reactions={post.reactions} onToggle={toggleReaction} />
+              </div>
+
               {/* Actions */}
-              <div className="flex items-center gap-5 mt-3" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-5 mt-2" onClick={e => e.stopPropagation()}>
                 <button
                   onClick={loadReplies}
                   className="flex items-center gap-1.5 text-xs transition-colors group"

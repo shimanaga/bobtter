@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Pencil, Check, X } from 'lucide-react'
+import { Plus, Trash2, Pencil, Check, X, ArrowUp, ArrowDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import type { Channel } from '../lib/database.types'
+import type { Channel, ReactionType } from '../lib/database.types'
+import { invalidateReactionTypesCache } from '../components/ReactionBar'
 import { useNavigate } from 'react-router-dom'
 
 interface EditState {
@@ -30,10 +31,21 @@ export default function AdminPage() {
   const [postingNotice, setPostingNotice] = useState(false)
   const [noticeStatus, setNoticeStatus] = useState<string | null>(null)
 
+  const [reactionTypes, setReactionTypes] = useState<ReactionType[]>([])
+  const [newRType, setNewRType] = useState('')
+  const [newRLabel, setNewRLabel] = useState('')
+  const [newREmoji, setNewREmoji] = useState('')
+  const [newRImageUrl, setNewRImageUrl] = useState('')
+  const [addingR, setAddingR] = useState(false)
+
   useEffect(() => {
     if (!profile?.is_admin) { navigate('/'); return }
-    supabase.from('channels').select('*').order('position').then(({ data }) => {
-      setChannels(data ?? [])
+    Promise.all([
+      supabase.from('channels').select('*').order('position'),
+      supabase.from('reaction_types').select('*').order('position'),
+    ]).then(([{ data: ch }, { data: rt }]) => {
+      setChannels(ch ?? [])
+      setReactionTypes(rt ?? [])
       setLoading(false)
     })
   }, [profile, navigate])
@@ -130,6 +142,54 @@ export default function AdminPage() {
       setNoticeStatus('お知らせを投稿しました')
     }
     setPostingNotice(false)
+  }
+
+  async function addReactionType() {
+    if (!newRType.trim() || !newRLabel.trim()) return
+    if (!newREmoji.trim() && !newRImageUrl.trim()) return
+    setAddingR(true)
+    const { data, error: err } = await supabase
+      .from('reaction_types')
+      .insert({
+        type: newRType.trim(),
+        label: newRLabel.trim(),
+        emoji: newREmoji.trim() || null,
+        image_url: newRImageUrl.trim() || null,
+        position: reactionTypes.length,
+      })
+      .select()
+      .single()
+    if (!err && data) {
+      setReactionTypes(prev => [...prev, data])
+      setNewRType(''); setNewRLabel(''); setNewREmoji(''); setNewRImageUrl('')
+      invalidateReactionTypesCache()
+    } else if (err) {
+      setError(err.message)
+    }
+    setAddingR(false)
+  }
+
+  async function deleteReactionType(type: string) {
+    if (!confirm(`リアクション「${type}」を削除しますか？`)) return
+    const { error: err } = await supabase.from('reaction_types').delete().eq('type', type)
+    if (!err) {
+      setReactionTypes(prev => prev.filter(r => r.type !== type))
+      invalidateReactionTypesCache()
+    } else {
+      setError(err.message)
+    }
+  }
+
+  async function moveReactionType(type: string, dir: -1 | 1) {
+    const idx = reactionTypes.findIndex(r => r.type === type)
+    const newIdx = idx + dir
+    if (newIdx < 0 || newIdx >= reactionTypes.length) return
+    const next = [...reactionTypes]
+    ;[next[idx], next[newIdx]] = [next[newIdx], next[idx]]
+    const updates = next.map((r, i) => ({ type: r.type, position: i }))
+    setReactionTypes(next.map((r, i) => ({ ...r, position: i })))
+    await Promise.all(updates.map(u => supabase.from('reaction_types').update({ position: u.position }).eq('type', u.type)))
+    invalidateReactionTypesCache()
   }
 
   if (loading) {
@@ -248,6 +308,81 @@ export default function AdminPage() {
       </div>
 
       {error && <p className="text-sm mb-4" style={{ color: '#e87878' }}>{error}</p>}
+
+      {/* Reaction types */}
+      <div
+        className="rounded-xl overflow-hidden mb-6"
+        style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}
+      >
+        <p className="font-display font-semibold text-sm px-4 py-3" style={{ color: 'var(--text-1)', borderBottom: '1px solid var(--border)' }}>
+          リアクション種別
+        </p>
+        {reactionTypes.length === 0 ? (
+          <p className="py-6 text-center text-sm" style={{ color: 'var(--text-3)' }}>リアクションがありません</p>
+        ) : (
+          reactionTypes.map((rt, idx) => (
+            <div key={rt.type} className="flex items-center gap-3 px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
+              <div className="w-8 h-8 flex items-center justify-center rounded-lg shrink-0" style={{ backgroundColor: 'var(--bg-raised)' }}>
+                {rt.image_url
+                  ? <img src={rt.image_url} alt={rt.label} className="w-5 h-5 object-contain" />
+                  : <span className="text-lg leading-none">{rt.emoji}</span>
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium" style={{ color: 'var(--text-1)' }}>{rt.label}</p>
+                <p className="font-mono text-xs" style={{ color: 'var(--text-3)' }}>{rt.type}</p>
+              </div>
+              <div className="flex items-center gap-1">
+                <button onClick={() => moveReactionType(rt.type, -1)} disabled={idx === 0} className="btn-ghost p-1 disabled:opacity-20">
+                  <ArrowUp size={13} />
+                </button>
+                <button onClick={() => moveReactionType(rt.type, 1)} disabled={idx === reactionTypes.length - 1} className="btn-ghost p-1 disabled:opacity-20">
+                  <ArrowDown size={13} />
+                </button>
+                <button onClick={() => deleteReactionType(rt.type)} className="btn-ghost p-1" style={{ color: '#e87878' }}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Add reaction type */}
+      <div
+        className="rounded-xl p-5 mb-6"
+        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+      >
+        <p className="font-display font-semibold text-sm mb-4" style={{ color: 'var(--text-1)' }}>
+          リアクションを追加
+        </p>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>識別子 *</label>
+            <input type="text" value={newRType} onChange={e => setNewRType(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} className="input-base w-full text-sm font-mono" placeholder="bob_face" />
+          </div>
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>表示名 *</label>
+            <input type="text" value={newRLabel} onChange={e => setNewRLabel(e.target.value)} className="input-base w-full text-sm" placeholder="ボブい" />
+          </div>
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>絵文字（どちらか必須）</label>
+            <input type="text" value={newREmoji} onChange={e => { setNewREmoji(e.target.value); setNewRImageUrl('') }} className="input-base w-full text-sm" placeholder="😂" />
+          </div>
+          <div>
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>画像URL</label>
+            <input type="text" value={newRImageUrl} onChange={e => { setNewRImageUrl(e.target.value); setNewREmoji('') }} className="input-base w-full text-sm" placeholder="https://..." />
+          </div>
+        </div>
+        <button
+          onClick={addReactionType}
+          disabled={addingR || !newRType.trim() || !newRLabel.trim() || (!newREmoji.trim() && !newRImageUrl.trim())}
+          className="btn-primary flex items-center gap-1.5 text-sm"
+        >
+          <Plus size={14} />
+          追加
+        </button>
+      </div>
 
       {/* Add channel form */}
       <div

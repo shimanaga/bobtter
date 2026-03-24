@@ -209,6 +209,60 @@ export interface Database {
           }
         ]
       }
+      reaction_types: {
+        Row: {
+          type: string
+          label: string
+          emoji: string | null
+          image_url: string | null
+          position: number
+        }
+        Insert: {
+          type: string
+          label: string
+          emoji?: string | null
+          image_url?: string | null
+          position?: number
+        }
+        Update: {
+          label?: string
+          emoji?: string | null
+          image_url?: string | null
+          position?: number
+        }
+        Relationships: []
+      }
+      reactions: {
+        Row: {
+          post_id: string
+          user_id: string
+          reaction_type: string
+          created_at: string
+        }
+        Insert: {
+          post_id: string
+          user_id: string
+          reaction_type: string
+          created_at?: string
+        }
+        Update: never
+        Relationships: [
+          {
+            foreignKeyName: "reactions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       user_channel_preferences: {
         Row: {
           user_id: string
@@ -268,6 +322,13 @@ export type Channel = Database['public']['Tables']['channels']['Row']
 export type Post = Database['public']['Tables']['posts']['Row']
 export type Like = Database['public']['Tables']['likes']['Row']
 export type Bookmark = Database['public']['Tables']['bookmarks']['Row']
+export type ReactionType = Database['public']['Tables']['reaction_types']['Row']
+
+export interface ReactionSummary {
+  type: string
+  count: number
+  reacted_by_me: boolean
+}
 
 export interface PostWithMeta extends Post {
   profiles: Profile | null   // null = 匿名投稿（user_id も null）
@@ -276,6 +337,7 @@ export interface PostWithMeta extends Post {
   replies_count: number
   liked_by_me: boolean
   bookmarked_by_me: boolean
+  reactions: ReactionSummary[]
 }
 
 export type ChannelVisibility = 'visible' | 'main_hidden' | 'hidden'

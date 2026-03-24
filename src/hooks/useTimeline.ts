@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import type { PostWithMeta } from '../lib/database.types'
+import type { PostWithMeta, ReactionSummary } from '../lib/database.types'
 
 export type TimelineItem =
   | { type: 'post'; post: PostWithMeta }
@@ -12,11 +12,13 @@ const PAGE_SIZE = 30
 async function enrichPosts(data: any[], userId: string): Promise<Map<string, PostWithMeta>> {
   if (data.length === 0) return new Map()
   const postIds = data.map((p: any) => p.id)
-  const [{ data: likes }, { data: bookmarks }, { data: allLikes }, { data: replyCounts }] = await Promise.all([
+  const [{ data: likes }, { data: bookmarks }, { data: allLikes }, { data: replyCounts }, { data: myReactions }, { data: allReactions }] = await Promise.all([
     supabase.from('likes').select('post_id').eq('user_id', userId).in('post_id', postIds),
     supabase.from('bookmarks').select('post_id').eq('user_id', userId).in('post_id', postIds),
     supabase.from('likes').select('post_id').in('post_id', postIds),
     supabase.from('posts').select('parent_id').in('parent_id', postIds),
+    supabase.from('reactions').select('post_id, reaction_type').eq('user_id', userId).in('post_id', postIds),
+    supabase.from('reactions').select('post_id, reaction_type').in('post_id', postIds),
   ])
   const likedSet = new Set(likes?.map((l: any) => l.post_id) ?? [])
   const bookmarkedSet = new Set(bookmarks?.map((b: any) => b.post_id) ?? [])
@@ -24,14 +26,26 @@ async function enrichPosts(data: any[], userId: string): Promise<Map<string, Pos
   allLikes?.forEach((l: any) => { likeCountMap[l.post_id] = (likeCountMap[l.post_id] ?? 0) + 1 })
   const replyCountMap: Record<string, number> = {}
   replyCounts?.forEach((r: any) => { if (r.parent_id) replyCountMap[r.parent_id] = (replyCountMap[r.parent_id] ?? 0) + 1 })
+  const myReactionSet = new Set(myReactions?.map((r: any) => `${r.post_id}:${r.reaction_type}`) ?? [])
+  const reactionCountMap: Record<string, Record<string, number>> = {}
+  allReactions?.forEach((r: any) => {
+    if (!reactionCountMap[r.post_id]) reactionCountMap[r.post_id] = {}
+    reactionCountMap[r.post_id][r.reaction_type] = (reactionCountMap[r.post_id][r.reaction_type] ?? 0) + 1
+  })
   const map = new Map<string, PostWithMeta>()
-  data.forEach((p: any) => map.set(p.id, {
-    ...p,
-    likes_count: likeCountMap[p.id] ?? 0,
-    replies_count: replyCountMap[p.id] ?? 0,
-    liked_by_me: likedSet.has(p.id),
-    bookmarked_by_me: bookmarkedSet.has(p.id),
-  }))
+  data.forEach((p: any) => {
+    const reactions: ReactionSummary[] = Object.entries(reactionCountMap[p.id] ?? {}).map(([type, count]) => ({
+      type, count, reacted_by_me: myReactionSet.has(`${p.id}:${type}`),
+    }))
+    map.set(p.id, {
+      ...p,
+      likes_count: likeCountMap[p.id] ?? 0,
+      replies_count: replyCountMap[p.id] ?? 0,
+      liked_by_me: likedSet.has(p.id),
+      bookmarked_by_me: bookmarkedSet.has(p.id),
+      reactions,
+    })
+  })
   return map
 }
 
@@ -88,6 +102,35 @@ function removePostById(prev: TimelineItem[], id: string): TimelineItem[] {
 
 // 同一デバイスからのいいね操作をマーク（Realtimeの二重適用防止）
 export const pendingLikeOps = new Set<string>()
+// 同一デバイスからのリアクション操作をマーク（Realtimeの二重適用防止）
+// key: `${post_id}:${reaction_type}`
+export const pendingReactionOps = new Set<string>()
+
+function applyReactionUpdate(item: TimelineItem, postId: string, reactionType: string, delta: number, reactedByMe?: boolean): TimelineItem {
+  const patch = (p: PostWithMeta): PostWithMeta => {
+    if (p.id !== postId) return p
+    const existing = p.reactions.find(r => r.type === reactionType)
+    let reactions: ReactionSummary[]
+    if (existing) {
+      const newCount = existing.count + delta
+      if (newCount <= 0) {
+        reactions = p.reactions.filter(r => r.type !== reactionType)
+      } else {
+        reactions = p.reactions.map(r => r.type !== reactionType ? r : {
+          ...r, count: newCount,
+          ...(reactedByMe !== undefined && { reacted_by_me: reactedByMe }),
+        })
+      }
+    } else if (delta > 0) {
+      reactions = [...p.reactions, { type: reactionType, count: 1, reacted_by_me: reactedByMe ?? false }]
+    } else {
+      return p
+    }
+    return { ...p, reactions }
+  }
+  if (item.type === 'post') return { ...item, post: patch(item.post) }
+  return { ...item, parent: patch(item.parent), reply: patch(item.reply) }
+}
 
 function applyLikeUpdate(item: TimelineItem, postId: string, delta: number, likedByMe?: boolean): TimelineItem {
   const patch = (p: PostWithMeta): PostWithMeta => p.id !== postId ? p : {
@@ -212,7 +255,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
         if (newPost.parent_id) {
           const { data } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)').eq('id', newPost.id).single()
           if (!data) return
-          const reply: PostWithMeta = { ...data, likes_count: 0, replies_count: 0, liked_by_me: false, bookmarked_by_me: false }
+          const reply: PostWithMeta = { ...data, likes_count: 0, replies_count: 0, liked_by_me: false, bookmarked_by_me: false, reactions: [] }
           setItems(prev => {
             // 既に表示済みなら追加しない（replyHandlerと二重追加防止）
             if (prev.some(item => item.type === 'thread' && item.reply.id === reply.id)) return prev
@@ -233,7 +276,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
         if (!data) return
         if (channelSlug && data.channels?.slug !== channelSlug) return
         if (!channelSlug && excludeChannelIds?.includes(data.channel_id)) return
-        const post: PostWithMeta = { ...data, likes_count: 0, replies_count: 0, liked_by_me: false, bookmarked_by_me: false }
+        const post: PostWithMeta = { ...data, likes_count: 0, replies_count: 0, liked_by_me: false, bookmarked_by_me: false, reactions: [] }
         setItems(prev => {
           if (prev.some(item => item.type === 'post' && item.post.id === post.id)) return prev
           return [{ type: 'post', post }, ...prev]
@@ -257,6 +300,28 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
             return
           }
           setItems(prev => prev.map(item => applyLikeUpdate(item, old.post_id!, -1)))
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reactions' }, payload => {
+        if (payload.eventType === 'INSERT') {
+          const { post_id, user_id, reaction_type } = payload.new as { post_id: string; user_id: string; reaction_type: string }
+          const key = `${post_id}:${reaction_type}`
+          if (user_id === profile.id) {
+            if (pendingReactionOps.has(key)) { pendingReactionOps.delete(key); return }
+            setItems(prev => prev.map(item => applyReactionUpdate(item, post_id, reaction_type, 1, true)))
+            return
+          }
+          setItems(prev => prev.map(item => applyReactionUpdate(item, post_id, reaction_type, 1)))
+        } else if (payload.eventType === 'DELETE') {
+          const old = payload.old as Partial<{ post_id: string; user_id: string; reaction_type: string }>
+          if (!old.post_id || !old.reaction_type) return
+          const key = `${old.post_id}:${old.reaction_type}`
+          if (old.user_id === profile.id) {
+            if (pendingReactionOps.has(key)) { pendingReactionOps.delete(key); return }
+            setItems(prev => prev.map(item => applyReactionUpdate(item, old.post_id!, old.reaction_type!, -1, false)))
+            return
+          }
+          setItems(prev => prev.map(item => applyReactionUpdate(item, old.post_id!, old.reaction_type!, -1)))
         }
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, async payload => {

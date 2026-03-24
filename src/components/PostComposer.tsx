@@ -139,6 +139,7 @@ export default function PostComposer({ channels, defaultChannelId, parentId, rep
         replies_count: 0,
         liked_by_me: false,
         bookmarked_by_me: false,
+        reactions: [],
       })
 
       setContent('')
