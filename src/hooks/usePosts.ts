@@ -65,6 +65,7 @@ export function usePosts(channelSlug?: string, excludeChannelIds?: string[]) {
       replies_count: replyCountMap[p.id] ?? 0,
       liked_by_me: likedSet.has(p.id),
       bookmarked_by_me: bookmarkedSet.has(p.id),
+      reactions: [],
     }))
 
     if (offset === 0) {
@@ -114,6 +115,7 @@ export function usePosts(channelSlug?: string, excludeChannelIds?: string[]) {
             replies_count: 0,
             liked_by_me: false,
             bookmarked_by_me: false,
+            reactions: [],
           }, ...prev]
         })
       })
