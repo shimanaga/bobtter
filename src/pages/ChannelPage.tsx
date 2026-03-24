@@ -105,6 +105,7 @@ export default function ChannelPage({ channels }: ChannelPageProps) {
                 channels={channels}
                 onUpdate={updateItem}
                 onDelete={deleteItem}
+                showParentChannel={false}
               />
             ) : (
               <PostCard

@@ -164,7 +164,8 @@ export default function PostComposer({ channels, defaultChannelId, parentId, rep
       style={{ backgroundColor: 'var(--bg-raised)', border: '1px solid var(--border)' }}
     >
       {!parentId && !defaultChannelId && (
-        <div className="mb-3">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs font-semibold shrink-0" style={{ color: 'var(--text-3)' }}>チャンネル：</span>
           <select
             value={channelId}
             onChange={e => setChannelId(e.target.value)}

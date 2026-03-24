@@ -475,8 +475,11 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
               {/* Channel badge */}
               {showChannel && (
                 <div className="flex items-center gap-1 mb-2">
-                  <Hash size={9} style={{ color: 'var(--text-3)' }} />
-                  <span className="font-mono text-xs" style={{ color: 'var(--text-3)' }}>
+                  <span
+                    className="flex items-center gap-1 font-mono text-xs px-1.5 py-0.5 rounded-md"
+                    style={{ color: 'var(--accent)', backgroundColor: 'var(--accent-dim)' }}
+                  >
+                    <Hash size={9} />
                     {post.channels.name}
                   </span>
                 </div>

@@ -8,6 +8,7 @@ interface ThreadItemProps {
   channels: Channel[]
   onUpdate: (updated: PostWithMeta) => void
   onDelete: (id: string) => void
+  showParentChannel?: boolean
 }
 
 interface Connector {
@@ -17,7 +18,7 @@ interface Connector {
   width: number
 }
 
-export default function ThreadItem({ parent, reply, channels, onUpdate, onDelete }: ThreadItemProps) {
+export default function ThreadItem({ parent, reply, channels, onUpdate, onDelete, showParentChannel = true }: ThreadItemProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const [connector, setConnector] = useState<Connector | null>(null)
 
@@ -73,7 +74,7 @@ export default function ThreadItem({ parent, reply, channels, onUpdate, onDelete
           channels={channels}
           onUpdate={onUpdate}
           onDelete={onDelete}
-          showChannel
+          showChannel={showParentChannel}
           threadLine
           noBorderBottom
           noRepliesList
