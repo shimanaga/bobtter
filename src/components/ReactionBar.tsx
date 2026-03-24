@@ -52,9 +52,17 @@ export default function ReactionBar({ reactions, onToggle }: ReactionBarProps) {
 
   useEffect(() => {
     if (!pickerOpen) return
-    const close = () => setPickerOpen(false)
-    window.addEventListener('click', close)
-    return () => window.removeEventListener('click', close)
+    const close = (e: MouseEvent) => {
+      // ピッカー内またはボタン自体のクリックはここで処理しない
+      const pickerEl = document.querySelector('[data-reaction-picker]')
+      if (pickerEl?.contains(e.target as Node)) return
+      if (btnRef.current?.contains(e.target as Node)) return
+      // それ以外（投稿本文・他のボタンなど）はピッカーを閉じてナビゲーションも止める
+      e.stopPropagation()
+      setPickerOpen(false)
+    }
+    document.addEventListener('click', close, true)
+    return () => document.removeEventListener('click', close, true)
   }, [pickerOpen])
 
   function renderReactionContent(rt: ReactionType) {
@@ -114,6 +122,7 @@ export default function ReactionBar({ reactions, onToggle }: ReactionBarProps) {
             border: '1px solid var(--border)',
           }}
           onClick={e => e.stopPropagation()}
+          data-reaction-picker=""
         >
           {reactionTypes.map(rt => {
             const existing = reactions.find(r => r.type === rt.type)

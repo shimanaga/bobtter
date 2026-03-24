@@ -277,7 +277,6 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
   const navigate = useNavigate()
   const [showReply, setShowReply] = useState(false)
   const [replies, setReplies] = useState<PostWithMeta[]>([])
-  const [repliesLoaded, setRepliesLoaded] = useState(false)
   const [loadingReplies, setLoadingReplies] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [expanded, setExpanded] = useState(false)
@@ -388,7 +387,6 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
         bookmarked_by_me: bookmarkedSet.has(p.id),
         reactions: [],
       })))
-      setRepliesLoaded(true)
     }
     setLoadingReplies(false)
   }
@@ -398,7 +396,6 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
     onUpdate({ ...post, replies_count: post.replies_count + 1 })
     window.dispatchEvent(new CustomEvent('reply-posted', { detail: { reply: newReply, parentId: post.id } }))
     setShowReply(false)
-    setRepliesLoaded(true)
   }
 
   const timeStr = new Date(post.created_at).toLocaleString('ja-JP', {
@@ -539,7 +536,7 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-5 mt-2" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-5 mt-3" onClick={e => e.stopPropagation()}>
                 <button
                   onClick={loadReplies}
                   className="flex items-center gap-1.5 text-xs transition-colors group"

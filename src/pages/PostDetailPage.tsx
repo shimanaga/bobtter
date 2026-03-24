@@ -14,11 +14,13 @@ interface Props {
 async function fetchWithMeta(data: any[], userId: string): Promise<Map<string, PostWithMeta>> {
   if (!data.length) return new Map()
   const ids = data.map(p => p.id)
-  const [{ data: likes }, { data: bookmarks }, { data: allLikes }, { data: replyCounts }] = await Promise.all([
+  const [{ data: likes }, { data: bookmarks }, { data: allLikes }, { data: replyCounts }, { data: myReactions }, { data: allReactions }] = await Promise.all([
     supabase.from('likes').select('post_id').eq('user_id', userId).in('post_id', ids),
     supabase.from('bookmarks').select('post_id').eq('user_id', userId).in('post_id', ids),
     supabase.from('likes').select('post_id').in('post_id', ids),
     supabase.from('posts').select('parent_id').in('parent_id', ids),
+    supabase.from('reactions').select('post_id, reaction_type').eq('user_id', userId).in('post_id', ids),
+    supabase.from('reactions').select('post_id, reaction_type').in('post_id', ids),
   ])
   const likedSet = new Set(likes?.map(l => l.post_id))
   const bookmarkedSet = new Set(bookmarks?.map(b => b.post_id))
@@ -26,15 +28,26 @@ async function fetchWithMeta(data: any[], userId: string): Promise<Map<string, P
   allLikes?.forEach(l => { likeMap[l.post_id] = (likeMap[l.post_id] ?? 0) + 1 })
   const replyMap: Record<string, number> = {}
   replyCounts?.forEach(r => { if (r.parent_id) replyMap[r.parent_id] = (replyMap[r.parent_id] ?? 0) + 1 })
+  const myReactionSet = new Set(myReactions?.map(r => `${r.post_id}:${r.reaction_type}`) ?? [])
+  const reactionCountMap: Record<string, Record<string, number>> = {}
+  allReactions?.forEach(r => {
+    if (!reactionCountMap[r.post_id]) reactionCountMap[r.post_id] = {}
+    reactionCountMap[r.post_id][r.reaction_type] = (reactionCountMap[r.post_id][r.reaction_type] ?? 0) + 1
+  })
   const map = new Map<string, PostWithMeta>()
-  data.forEach(p => map.set(p.id, {
-    ...p,
-    likes_count: likeMap[p.id] ?? 0,
-    replies_count: replyMap[p.id] ?? 0,
-    liked_by_me: likedSet.has(p.id),
-    bookmarked_by_me: bookmarkedSet.has(p.id),
-    reactions: [],
-  }))
+  data.forEach(p => {
+    const reactions = Object.entries(reactionCountMap[p.id] ?? {}).map(([type, count]) => ({
+      type, count, reacted_by_me: myReactionSet.has(`${p.id}:${type}`),
+    }))
+    map.set(p.id, {
+      ...p,
+      likes_count: likeMap[p.id] ?? 0,
+      replies_count: replyMap[p.id] ?? 0,
+      liked_by_me: likedSet.has(p.id),
+      bookmarked_by_me: bookmarkedSet.has(p.id),
+      reactions,
+    })
+  })
   return map
 }
 
