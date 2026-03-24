@@ -45,6 +45,7 @@ export default function BookmarksPage({ channels }: BookmarksPageProps) {
         replies_count: replyMap[p.id] ?? 0,
         liked_by_me: likedSet.has(p.id),
         bookmarked_by_me: true,
+        reactions: [],
       })))
       setLoading(false)
     }

@@ -33,6 +33,7 @@ async function fetchWithMeta(data: any[], userId: string): Promise<Map<string, P
     replies_count: replyMap[p.id] ?? 0,
     liked_by_me: likedSet.has(p.id),
     bookmarked_by_me: bookmarkedSet.has(p.id),
+    reactions: [],
   }))
   return map
 }
