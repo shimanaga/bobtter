@@ -257,6 +257,40 @@ function isTweetUrl(url: string): boolean {
   return /(?:twitter\.com|x\.com)\/\w+\/status\/\d+/.test(url)
 }
 
+function isSoundCloudUrl(url: string): boolean {
+  return /soundcloud\.com\//.test(url)
+}
+
+const soundCloudHtmlCache = new Map<string, string | null>()
+
+function SoundCloudEmbed({ url }: { url: string }) {
+  const [html, setHtml] = useState<string | null | undefined>(
+    soundCloudHtmlCache.has(url) ? soundCloudHtmlCache.get(url) : undefined
+  )
+
+  useEffect(() => {
+    if (soundCloudHtmlCache.has(url)) { setHtml(soundCloudHtmlCache.get(url) ?? null); return }
+    fetch(`https://soundcloud.com/oembed?url=${encodeURIComponent(url)}&format=json`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { html?: string } | null) => {
+        const result = data?.html ?? null
+        soundCloudHtmlCache.set(url, result)
+        setHtml(result)
+      })
+      .catch(() => { soundCloudHtmlCache.set(url, null); setHtml(null) })
+  }, [url])
+
+  if (!html) return null
+
+  return (
+    <div
+      className="mt-3 rounded-xl overflow-hidden"
+      style={{ border: '1px solid var(--border)' }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
+}
+
 const tweetHtmlCache = new Map<string, string | null>()
 
 function loadTwitterScript() {
@@ -302,8 +336,7 @@ function TwitterEmbed({ url }: { url: string }) {
   return (
     <div
       ref={containerRef}
-      className="mt-3 rounded-xl overflow-hidden"
-      style={{ border: '1px solid var(--border)', zoom: 0.85 }}
+      className="mt-3"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
@@ -326,6 +359,7 @@ function UrlEmbed({ url }: { url: string }) {
     )
   }
   if (isTweetUrl(url)) return <TwitterEmbed url={url} />
+  if (isSoundCloudUrl(url)) return <SoundCloudEmbed url={url} />
   return <OgpCard url={url} />
 }
 
