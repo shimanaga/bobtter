@@ -303,7 +303,7 @@ function TwitterEmbed({ url }: { url: string }) {
     <div
       ref={containerRef}
       className="mt-3 rounded-xl overflow-hidden"
-      style={{ border: '1px solid var(--border)' }}
+      style={{ border: '1px solid var(--border)', zoom: 0.85 }}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
