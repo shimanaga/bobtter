@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { pendingLikeOps, pendingReactionOps } from '../hooks/useTimeline'
@@ -253,6 +253,62 @@ function OgpCard({ url }: { url: string }) {
   )
 }
 
+function isTweetUrl(url: string): boolean {
+  return /(?:twitter\.com|x\.com)\/\w+\/status\/\d+/.test(url)
+}
+
+const tweetHtmlCache = new Map<string, string | null>()
+
+function loadTwitterScript() {
+  if (document.getElementById('twitter-wjs')) return
+  const win = window as any
+  if (!win.twttr) {
+    win.twttr = { _e: [] as any[], ready: (f: any) => win.twttr._e.push(f) }
+  }
+  const s = document.createElement('script')
+  s.id = 'twitter-wjs'
+  s.src = 'https://platform.twitter.com/widgets.js'
+  s.async = true
+  document.head.appendChild(s)
+}
+
+function TwitterEmbed({ url }: { url: string }) {
+  const [html, setHtml] = useState<string | null | undefined>(
+    tweetHtmlCache.has(url) ? tweetHtmlCache.get(url) : undefined
+  )
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (tweetHtmlCache.has(url)) { setHtml(tweetHtmlCache.get(url) ?? null); return }
+    fetch(`https://publish.twitter.com/oembed?url=${encodeURIComponent(url)}&omit_script=true&theme=dark&dnt=true`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { html?: string } | null) => {
+        const result = data?.html ?? null
+        tweetHtmlCache.set(url, result)
+        setHtml(result)
+      })
+      .catch(() => { tweetHtmlCache.set(url, null); setHtml(null) })
+  }, [url])
+
+  useEffect(() => {
+    if (!html || !containerRef.current) return
+    loadTwitterScript()
+    const tw = (window as any).twttr
+    tw?.ready?.((t: any) => t.widgets.load(containerRef.current))
+  }, [html])
+
+  if (!html) return null
+
+  return (
+    <div
+      ref={containerRef}
+      className="mt-3 rounded-xl overflow-hidden"
+      style={{ border: '1px solid var(--border)' }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
+}
+
 function UrlEmbed({ url }: { url: string }) {
   const ytId = extractYouTubeId(url)
   if (ytId) {
@@ -269,6 +325,7 @@ function UrlEmbed({ url }: { url: string }) {
       </div>
     )
   }
+  if (isTweetUrl(url)) return <TwitterEmbed url={url} />
   return <OgpCard url={url} />
 }
 
