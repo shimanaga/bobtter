@@ -113,10 +113,11 @@ export default function ReactionBar({ reactions, onToggle }: ReactionBarProps) {
 
       {pickerOpen && pickerPos && createPortal(
         <div
-          className="fixed z-50 flex items-center gap-1 px-2 py-1.5 rounded-xl shadow-lg"
+          className="fixed z-50 flex flex-wrap items-center gap-1 px-2 py-1.5 rounded-xl shadow-lg"
           style={{
             top: pickerPos.top,
             left: pickerPos.left,
+            maxWidth: `calc(100vw - ${pickerPos.left + 8}px)`,
             transform: 'translateY(-100%)',
             backgroundColor: 'var(--bg-surface)',
             border: '1px solid var(--border)',

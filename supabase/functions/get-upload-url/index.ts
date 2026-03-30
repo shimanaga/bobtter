@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
       ext: string
       content_type?: string
     }
-    if (!['posts', 'avatars'].includes(folder)) return json({ error: '不正なフォルダです' }, 400)
+    if (!['posts', 'avatars', 'reactions'].includes(folder)) return json({ error: '不正なフォルダです' }, 400)
 
     // 動画は posts フォルダのみ許可
     const isVideo = content_type?.startsWith('video/')
