@@ -38,9 +38,15 @@ export async function uploadAvatar(file: File, accessToken: string): Promise<str
   return uploadToR2(compressed, 'avatars', accessToken)
 }
 
+/** リアクション画像を圧縮して R2 にアップロードし、公開 URL を返す */
+export async function uploadReactionImage(file: File, accessToken: string): Promise<string> {
+  const compressed = await imageCompression(file, AVATAR_OPTIONS)
+  return uploadToR2(compressed, 'reactions', accessToken)
+}
+
 async function uploadToR2(
   file: Blob | File,
-  folder: 'posts' | 'avatars',
+  folder: 'posts' | 'avatars' | 'reactions',
   accessToken: string,
 ): Promise<string> {
   // 拡張子を MIME タイプから推定

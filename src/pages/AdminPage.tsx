@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
-import { Plus, Trash2, Pencil, Check, X, ArrowUp, ArrowDown } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Plus, Trash2, Pencil, Check, X, ArrowUp, ArrowDown, Upload } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import type { Channel, ReactionType } from '../lib/database.types'
 import { invalidateReactionTypesCache } from '../components/ReactionBar'
+import { uploadReactionImage } from '../lib/uploadImage'
 import { useNavigate } from 'react-router-dom'
 
 interface EditState {
@@ -37,6 +38,11 @@ export default function AdminPage() {
   const [newREmoji, setNewREmoji] = useState('')
   const [newRImageUrl, setNewRImageUrl] = useState('')
   const [addingR, setAddingR] = useState(false)
+  const [uploadingR, setUploadingR] = useState(false)
+  const [uploadingForType, setUploadingForType] = useState<string | null>(null)
+  const newImageInputRef = useRef<HTMLInputElement>(null)
+  const existingImageInputRef = useRef<HTMLInputElement>(null)
+  const uploadingForTypeRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!profile?.is_admin) { navigate('/'); return }
@@ -142,6 +148,39 @@ export default function AdminPage() {
       setNoticeStatus('お知らせを投稿しました')
     }
     setPostingNotice(false)
+  }
+
+  async function handleNewImageUpload(file: File) {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    setUploadingR(true)
+    try {
+      const url = await uploadReactionImage(file, session.access_token)
+      setNewRImageUrl(url)
+      setNewREmoji('')
+    } catch (e: any) {
+      setError(e.message)
+    }
+    setUploadingR(false)
+  }
+
+  async function handleExistingImageUpload(file: File, type: string) {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    setUploadingForType(type)
+    try {
+      const url = await uploadReactionImage(file, session.access_token)
+      const { error: err } = await supabase.from('reaction_types').update({ image_url: url, emoji: null }).eq('type', type)
+      if (!err) {
+        setReactionTypes(prev => prev.map(r => r.type === type ? { ...r, image_url: url, emoji: null } : r))
+        invalidateReactionTypesCache()
+      } else {
+        setError(err.message)
+      }
+    } catch (e: any) {
+      setError(e.message)
+    }
+    setUploadingForType(null)
   }
 
   async function addReactionType() {
@@ -333,6 +372,14 @@ export default function AdminPage() {
                 <p className="font-mono text-xs" style={{ color: 'var(--text-3)' }}>{rt.type}</p>
               </div>
               <div className="flex items-center gap-1">
+                <button
+                  onClick={() => { uploadingForTypeRef.current = rt.type; existingImageInputRef.current?.click() }}
+                  disabled={uploadingForType === rt.type}
+                  className="btn-ghost p-1"
+                  title="画像をアップロードして差し替え"
+                >
+                  {uploadingForType === rt.type ? <span className="text-xs" style={{ color: 'var(--text-3)' }}>...</span> : <Upload size={13} />}
+                </button>
                 <button onClick={() => moveReactionType(rt.type, -1)} disabled={idx === 0} className="btn-ghost p-1 disabled:opacity-20">
                   <ArrowUp size={13} />
                 </button>
@@ -347,6 +394,19 @@ export default function AdminPage() {
           ))
         )}
       </div>
+
+      <input
+        ref={existingImageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={e => {
+          const f = e.target.files?.[0]
+          const t = uploadingForTypeRef.current
+          if (f && t) handleExistingImageUpload(f, t)
+          e.target.value = ''
+        }}
+      />
 
       {/* Add reaction type */}
       <div
@@ -370,8 +430,26 @@ export default function AdminPage() {
             <input type="text" value={newREmoji} onChange={e => { setNewREmoji(e.target.value); setNewRImageUrl('') }} className="input-base w-full text-sm" placeholder="😂" />
           </div>
           <div>
-            <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>画像URL</label>
-            <input type="text" value={newRImageUrl} onChange={e => { setNewRImageUrl(e.target.value); setNewREmoji('') }} className="input-base w-full text-sm" placeholder="https://..." />
+            <label className="block text-xs mb-1" style={{ color: 'var(--text-3)' }}>画像</label>
+            <div className="flex items-center gap-2">
+              {newRImageUrl && <img src={newRImageUrl} alt="" className="w-7 h-7 object-contain rounded" />}
+              <button
+                type="button"
+                onClick={() => newImageInputRef.current?.click()}
+                disabled={uploadingR}
+                className="btn-ghost flex items-center gap-1.5 text-xs px-3 py-1.5"
+              >
+                <Upload size={13} />
+                {uploadingR ? 'アップロード中...' : newRImageUrl ? '変更' : 'アップロード'}
+              </button>
+              <input
+                ref={newImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleNewImageUpload(f); e.target.value = '' }}
+              />
+            </div>
           </div>
         </div>
         <button
