@@ -85,16 +85,21 @@ async function uploadToR2(
     public_url: string
   }
 
-  const uploadRes = await fetch(upload_url, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': file.type,
-      'x-amz-content-sha256': 'UNSIGNED-PAYLOAD',
-    },
-    body: file,
-  })
+  let uploadRes: Response | undefined
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    uploadRes = await fetch(upload_url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type,
+        'x-amz-content-sha256': 'UNSIGNED-PAYLOAD',
+      },
+      body: file,
+    })
+    if (uploadRes.ok) break
+    if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 500))
+  }
 
-  if (!uploadRes.ok) throw new Error('アップロードに失敗しました')
+  if (!uploadRes?.ok) throw new Error('アップロードに失敗しました')
 
   return public_url
 }

@@ -84,8 +84,9 @@ export function usePosts(channelSlug?: string, excludeChannelIds?: string[]) {
   // Realtime subscription
   useEffect(() => {
     if (!profile) return
+    const channelName = `posts-realtime:${channelSlug ?? 'home'}:${excludeChannelIds?.join(',') ?? ''}`
     const channel = supabase
-      .channel('posts-realtime')
+      .channel(channelName)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async payload => {
         const newPost = payload.new as { id: string; parent_id: string | null; user_id: string | null }
         if (newPost.parent_id) {

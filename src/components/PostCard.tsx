@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import DOMPurify from 'dompurify'
 import { useNavigate } from 'react-router-dom'
 import { pendingLikeOps, pendingReactionOps } from '../hooks/useTimeline'
 import ReactionBar from './ReactionBar'
@@ -286,7 +287,7 @@ function SoundCloudEmbed({ url }: { url: string }) {
     <div
       className="mt-3 rounded-xl overflow-hidden"
       style={{ border: '1px solid var(--border)' }}
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html, { ADD_TAGS: ['iframe'], ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'src', 'width', 'height'] }) }}
     />
   )
 }
@@ -337,7 +338,7 @@ function TwitterEmbed({ url }: { url: string }) {
     <div
       ref={containerRef}
       className="mt-3"
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html, { ADD_TAGS: ['iframe'], ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'src', 'width', 'height'] }) }}
     />
   )
 }
@@ -392,18 +393,22 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
   async function toggleLike() {
     if (!profile) return
     pendingLikeOps.add(post.id)
+    setTimeout(() => pendingLikeOps.delete(post.id), 10_000)
     if (post.liked_by_me) {
-      await supabase.from('likes').delete().match({ post_id: post.id, user_id: profile.id })
+      const { error } = await supabase.from('likes').delete().match({ post_id: post.id, user_id: profile.id })
+      if (error) { pendingLikeOps.delete(post.id); return }
       onUpdate({ ...post, liked_by_me: false, likes_count: post.likes_count - 1 })
     } else {
-      await supabase.from('likes').insert({ post_id: post.id, user_id: profile.id })
+      const { error } = await supabase.from('likes').insert({ post_id: post.id, user_id: profile.id })
+      if (error) { pendingLikeOps.delete(post.id); return }
       onUpdate({ ...post, liked_by_me: true, likes_count: post.likes_count + 1 })
     }
   }
 
   async function handleDelete() {
     if (!profile || post.user_id !== profile.id) return
-    await supabase.from('posts').delete().eq('id', post.id)
+    const { error } = await supabase.from('posts').delete().eq('id', post.id)
+    if (error) return
     onDelete?.(post.id)
     setConfirmDelete(false)
   }
@@ -413,8 +418,10 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
     const existing = post.reactions.find(r => r.type === type)
     const key = `${post.id}:${type}`
     pendingReactionOps.add(key)
+    setTimeout(() => pendingReactionOps.delete(key), 10_000)
     if (existing?.reacted_by_me) {
-      await supabase.from('reactions').delete().match({ post_id: post.id, user_id: profile.id, reaction_type: type })
+      const { error } = await supabase.from('reactions').delete().match({ post_id: post.id, user_id: profile.id, reaction_type: type })
+      if (error) { pendingReactionOps.delete(key); return }
       const newCount = existing.count - 1
       onUpdate({
         ...post,
@@ -423,7 +430,8 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
           : post.reactions.map(r => r.type !== type ? r : { ...r, count: newCount, reacted_by_me: false }),
       })
     } else {
-      await supabase.from('reactions').insert({ post_id: post.id, user_id: profile.id, reaction_type: type })
+      const { error } = await supabase.from('reactions').insert({ post_id: post.id, user_id: profile.id, reaction_type: type })
+      if (error) { pendingReactionOps.delete(key); return }
       onUpdate({
         ...post,
         reactions: existing
@@ -436,11 +444,11 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
   async function toggleBookmark() {
     if (!profile) return
     if (post.bookmarked_by_me) {
-      await supabase.from('bookmarks').delete().match({ post_id: post.id, user_id: profile.id })
-      onUpdate({ ...post, bookmarked_by_me: false })
+      const { error } = await supabase.from('bookmarks').delete().match({ post_id: post.id, user_id: profile.id })
+      if (!error) onUpdate({ ...post, bookmarked_by_me: false })
     } else {
-      await supabase.from('bookmarks').insert({ post_id: post.id, user_id: profile.id })
-      onUpdate({ ...post, bookmarked_by_me: true })
+      const { error } = await supabase.from('bookmarks').insert({ post_id: post.id, user_id: profile.id })
+      if (!error) onUpdate({ ...post, bookmarked_by_me: true })
     }
   }
 

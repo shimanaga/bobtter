@@ -247,8 +247,9 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
   useEffect(() => {
     if (!profile) return
 
+    const channelName = `timeline-realtime:${channelSlug ?? 'home'}:${excludeChannelIds?.join(',') ?? ''}`
     const channel = supabase
-      .channel('timeline-realtime')
+      .channel(channelName)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async payload => {
         const newPost = payload.new as { id: string; parent_id: string | null; user_id: string | null; channel_id: string }
 
@@ -324,11 +325,10 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
           setItems(prev => prev.map(item => applyReactionUpdate(item, old.post_id!, old.reaction_type!, -1)))
         }
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, async payload => {
-        const old = payload.old as Partial<{ id: string; user_id: string }>
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, payload => {
+        const old = payload.old as Partial<{ id: string }>
         if (!old.id) return
-        if (old.user_id === profile.id) return // 自分の削除はhandleDelete側で処理済み
-        await buildTimeline()
+        setItems(prev => removePostById(prev, old.id!))
       })
       .subscribe()
 
