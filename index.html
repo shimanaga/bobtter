@@ -7,7 +7,14 @@
     <title>bobtter</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Nunito:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet" />
+    <script>
+      // テーマを描画前に適用（チラつき防止）
+      try {
+        var t = localStorage.getItem('bobtter-theme')
+        if (t === 'cute') document.documentElement.dataset.theme = 'cute'
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

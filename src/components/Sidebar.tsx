@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { Home, Bookmark, Settings, LogOut, User } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useChannelPrefs } from '../contexts/ChannelPrefsContext'
+import ThemeToggle from './ThemeToggle'
 
 export default function Sidebar() {
   const { profile, signOut } = useAuth()
@@ -64,6 +65,7 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="mt-4 pt-4 space-y-0.5" style={{ borderTop: '1px solid var(--border)' }}>
+        <ThemeToggle />
         {profile?.is_admin && (
           <NavLink to="/admin" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
             <Settings size={15} />

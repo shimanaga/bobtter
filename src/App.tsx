@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ChannelPrefsProvider } from './contexts/ChannelPrefsContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 import { supabase } from './lib/supabase'
 import type { Channel } from './lib/database.types'
 import Layout from './components/Layout'
@@ -63,10 +64,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter basename="/bobtter">
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter basename="/bobtter">
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }

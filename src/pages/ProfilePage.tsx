@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useChannelPrefs } from '../contexts/ChannelPrefsContext'
 import { uploadAvatar } from '../lib/uploadImage'
 import AvatarCropperModal from '../components/AvatarCropperModal'
+import ThemeToggle from '../components/ThemeToggle'
 import type { ChannelVisibility } from '../lib/database.types'
 
 const VISIBILITY_OPTIONS: { value: ChannelVisibility; label: string }[] = [
@@ -188,6 +189,14 @@ export default function ProfilePage() {
       <h2 className="font-display font-bold text-lg mb-6" style={{ color: 'var(--text-1)' }}>
         プロフィール
       </h2>
+
+      {/* テーマ切り替え */}
+      <div className="mb-8">
+        <h3 className="font-display font-semibold text-sm mb-3" style={{ color: 'var(--text-2)' }}>
+          表示テーマ
+        </h3>
+        <ThemeToggle variant="row" />
+      </div>
 
       {/* Avatar */}
       <div className="flex items-center gap-4 mb-8">
