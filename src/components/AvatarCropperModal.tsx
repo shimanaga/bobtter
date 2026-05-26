@@ -183,6 +183,9 @@ export default function AvatarCropperModal({ src, onConfirm, onCancel }: Props) 
               top: CROP_SIZE / 2 + offset.y - imgH / 2,
               width: imgW,
               height: imgH,
+              // Tailwind preflight の `img { max-width: 100% }` を解除（幅が頭打ちになりアスペクト比が崩れるのを防ぐ）
+              maxWidth: 'none',
+              maxHeight: 'none',
               pointerEvents: 'none',
             }}
             alt=""
