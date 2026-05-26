@@ -23,6 +23,8 @@ export default function AvatarCropperModal({ src, onConfirm, onCancel }: Props) 
   const [nat, setNat] = useState({ w: 1, h: 1 })
   const [minScale, setMinScale] = useState(1)
   const [scale, setScale] = useState(1)
+  // イベントハンドラ内でのクロージャ stale 回避用。ピンチ/ホイール連射時に常に最新値を参照する
+  const scaleRef = useRef(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const dragging = useRef(false)
   const dragStart = useRef({ x: 0, y: 0 })
@@ -37,18 +39,20 @@ export default function AvatarCropperModal({ src, onConfirm, onCancel }: Props) 
     const min = Math.max(CROP_SIZE / w, CROP_SIZE / h)
     setMinScale(min)
     setScale(min)
+    scaleRef.current = min
     setOffset({ x: 0, y: 0 })
   }
 
   function applyScale(next: number) {
     const s = Math.max(minScale, Math.min(next, minScale * 5))
+    scaleRef.current = s
     setScale(s)
     setOffset(prev => clamp(prev.x, prev.y, s, nat.w, nat.h))
   }
 
   function handleWheel(e: React.WheelEvent) {
     e.preventDefault()
-    applyScale(scale * (e.deltaY < 0 ? 1.1 : 1 / 1.1))
+    applyScale(scaleRef.current * (e.deltaY < 0 ? 1.1 : 1 / 1.1))
   }
 
   function handleMouseDown(e: React.MouseEvent) {
@@ -94,7 +98,7 @@ export default function AvatarCropperModal({ src, onConfirm, onCancel }: Props) 
       const dx = e.touches[0].clientX - e.touches[1].clientX
       const dy = e.touches[0].clientY - e.touches[1].clientY
       const dist = Math.hypot(dx, dy)
-      applyScale(scale * dist / lastTouchDist.current)
+      applyScale(scaleRef.current * dist / lastTouchDist.current)
       lastTouchDist.current = dist
     }
   }
@@ -187,7 +191,7 @@ export default function AvatarCropperModal({ src, onConfirm, onCancel }: Props) 
 
         {/* Zoom */}
         <div className="flex items-center gap-3 w-full">
-          <button onClick={() => applyScale(scale / 1.2)} className="btn-ghost p-1">
+          <button onClick={() => applyScale(scaleRef.current / 1.2)} className="btn-ghost p-1">
             <ZoomOut size={16} />
           </button>
           <input
@@ -198,7 +202,7 @@ export default function AvatarCropperModal({ src, onConfirm, onCancel }: Props) 
             onChange={handleRangeChange}
             className="flex-1"
           />
-          <button onClick={() => applyScale(scale * 1.2)} className="btn-ghost p-1">
+          <button onClick={() => applyScale(scaleRef.current * 1.2)} className="btn-ghost p-1">
             <ZoomIn size={16} />
           </button>
         </div>

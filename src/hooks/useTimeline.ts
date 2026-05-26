@@ -49,6 +49,22 @@ async function enrichPosts(data: any[], userId: string): Promise<Map<string, Pos
   return map
 }
 
+// エンリッチ前のプレースホルダー（いいね数等はデフォルト値）で即時表示するためのマップ
+function makePlaceholderMap(data: any[]): Map<string, PostWithMeta> {
+  const map = new Map<string, PostWithMeta>()
+  data.forEach((p: any) => {
+    map.set(p.id, {
+      ...p,
+      likes_count: 0,
+      replies_count: 0,
+      liked_by_me: false,
+      bookmarked_by_me: false,
+      reactions: [],
+    })
+  })
+  return map
+}
+
 function buildItemsFromBatch(
   data: any[],
   enrichedMap: Map<string, PostWithMeta>,
@@ -153,6 +169,8 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
   const cursorRef = useRef<string | null>(null)
   // 表示済みの post ID（追加ページで重複を避けるため）
   const displayedIdsRef = useRef(new Set<string>())
+  // 初回ロードのトークン（チャンネル切替などで stale な非同期結果を破棄するため）
+  const loadTokenRef = useRef(0)
 
   function trackDisplayed(newItems: TimelineItem[]) {
     newItems.forEach(item => {
@@ -181,33 +199,47 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
 
   const buildTimeline = useCallback(async () => {
     if (!profile) return
+    const token = ++loadTokenRef.current
     setLoading(true)
     displayedIdsRef.current = new Set()
     cursorRef.current = null
 
     const { data } = await buildQuery()
+    if (loadTokenRef.current !== token) return
     if (!data) { setLoading(false); return }
 
     setHasMore(data.length === PAGE_SIZE)
     if (data.length > 0) cursorRef.current = data[data.length - 1].created_at
 
+    // Phase 1: エンリッチを待たずプレースホルダーで即時表示（読み込めた投稿から順に表示）
+    const placeholderMap = makePlaceholderMap(data)
+    const { items: placeholderItems } = buildItemsFromBatch(data, placeholderMap, new Set())
+    displayedIdsRef.current = new Set()
+    trackDisplayed(placeholderItems)
+    setItems(placeholderItems)
+    setLoading(false)
+
+    // Phase 2: いいね数・ブックマーク・リアクション等をバックグラウンドで取得して差し替え
     const enrichedMap = await enrichPosts(data, profile.id)
+    if (loadTokenRef.current !== token) return
 
     const missingParentIds = [...new Set(
       data.filter((p: any) => p.parent_id && !enrichedMap.has(p.parent_id)).map((p: any) => p.parent_id as string)
     )]
     if (missingParentIds.length > 0) {
       const { data: parents } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)').in('id', missingParentIds)
+      if (loadTokenRef.current !== token) return
       if (parents) {
         const parentMap = await enrichPosts(parents, profile.id)
         parentMap.forEach((v, k) => enrichedMap.set(k, v))
       }
     }
 
+    if (loadTokenRef.current !== token) return
     const { items: newItems } = buildItemsFromBatch(data, enrichedMap, new Set())
+    displayedIdsRef.current = new Set()
     trackDisplayed(newItems)
     setItems(newItems)
-    setLoading(false)
   }, [profile, channelSlug, excludeChannelIds?.join(',')])
 
   useEffect(() => { buildTimeline() }, [buildTimeline])
