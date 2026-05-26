@@ -4,7 +4,7 @@ import BottomNav from './BottomNav'
 
 export default function Layout() {
   return (
-    <div className="flex min-h-screen bg-gray-950">
+    <div className="flex min-h-screen" style={{ backgroundColor: 'var(--bg-base)' }}>
       <div className="hidden md:flex">
         <Sidebar />
       </div>

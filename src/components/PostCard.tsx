@@ -7,6 +7,7 @@ import ReactionBar from './ReactionBar'
 import { Heart, MessageCircle, Bookmark, Hash, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
 import type { Channel, PostWithMeta } from '../lib/database.types'
 import PostComposer from './PostComposer'
 
@@ -308,22 +309,26 @@ function loadTwitterScript() {
 }
 
 function TwitterEmbed({ url }: { url: string }) {
+  const { theme } = useTheme()
+  const twTheme = theme === 'cute' ? 'light' : 'dark'
+  const cacheKey = `${url}:${twTheme}`
   const [html, setHtml] = useState<string | null | undefined>(
-    tweetHtmlCache.has(url) ? tweetHtmlCache.get(url) : undefined
+    tweetHtmlCache.has(cacheKey) ? tweetHtmlCache.get(cacheKey) : undefined
   )
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (tweetHtmlCache.has(url)) { setHtml(tweetHtmlCache.get(url) ?? null); return }
-    fetch(`https://publish.twitter.com/oembed?url=${encodeURIComponent(url)}&omit_script=true&theme=dark&dnt=true`)
+    if (tweetHtmlCache.has(cacheKey)) { setHtml(tweetHtmlCache.get(cacheKey) ?? null); return }
+    setHtml(undefined)
+    fetch(`https://publish.twitter.com/oembed?url=${encodeURIComponent(url)}&omit_script=true&theme=${twTheme}&dnt=true`)
       .then(r => r.ok ? r.json() : null)
       .then((data: { html?: string } | null) => {
         const result = data?.html ?? null
-        tweetHtmlCache.set(url, result)
+        tweetHtmlCache.set(cacheKey, result)
         setHtml(result)
       })
-      .catch(() => { tweetHtmlCache.set(url, null); setHtml(null) })
-  }, [url])
+      .catch(() => { tweetHtmlCache.set(cacheKey, null); setHtml(null) })
+  }, [url, twTheme, cacheKey])
 
   useEffect(() => {
     if (!html || !containerRef.current) return

@@ -157,13 +157,13 @@
    ＠layer の外に置くことで、確実に base/components のスタイルへ優先する
    ===================================================================== */
 [data-theme='cute'] {
-  --bg-base:    #eef4f7;
-  --bg-surface: #ffffff;
-  --bg-raised:  #f2f7fb;
-  --border:     #d9e7ef;
-  --text-1:     #37535f;
-  --text-2:     #6f8d9b;
-  --text-3:     #a6c0cc;
+  --bg-base:    #eaf0f2;
+  --bg-surface: #fbf9f5;
+  --bg-raised:  #f3f0ea;
+  --border:     #e4e0d6;
+  --text-1:     #45494b;
+  --text-2:     #82888a;
+  --text-3:     #b3b8b6;
   --accent:     #3fa8cc;
   --accent-dim: #e1f2f9;
 
