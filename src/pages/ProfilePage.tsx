@@ -190,14 +190,6 @@ export default function ProfilePage() {
         プロフィール
       </h2>
 
-      {/* テーマ切り替え */}
-      <div className="mb-8">
-        <h3 className="font-display font-semibold text-sm mb-3" style={{ color: 'var(--text-2)' }}>
-          表示テーマ
-        </h3>
-        <ThemeToggle variant="row" />
-      </div>
-
       {/* Avatar */}
       <div className="flex items-center gap-4 mb-8">
         <div className="relative group">
@@ -308,6 +300,14 @@ export default function ProfilePage() {
             : '保存する'}
         </button>
       </form>
+
+      {/* テーマ切り替え */}
+      <div className="mb-8">
+        <h3 className="font-display font-semibold text-sm mb-3" style={{ color: 'var(--text-2)' }}>
+          表示テーマ
+        </h3>
+        <ThemeToggle variant="row" />
+      </div>
 
       {/* Channel preferences */}
       <div>

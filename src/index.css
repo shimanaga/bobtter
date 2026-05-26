@@ -157,9 +157,10 @@
    ＠layer の外に置くことで、確実に base/components のスタイルへ優先する
    ===================================================================== */
 [data-theme='cute'] {
-  --bg-base:    #eaf0f2;
+  --bg-base:    #eef2f1;
   --bg-surface: #fbf9f5;
-  --bg-raised:  #f3f0ea;
+  /* 投稿フォーム等もタイムラインと同じ色に揃える */
+  --bg-raised:  #fbf9f5;
   --border:     #e4e0d6;
   --text-1:     #45494b;
   --text-2:     #82888a;
@@ -168,6 +169,12 @@
   --accent-dim: #e1f2f9;
 
   font-family: 'M PLUS Rounded 1c', 'Nunito', sans-serif;
+}
+
+/* bg-raised を surface に揃えたぶん、ghost ボタンの hover を別途用意 */
+[data-theme='cute'] .btn-ghost:hover {
+  background-color: rgba(70, 80, 90, 0.06);
+  color: var(--text-1);
 }
 
 [data-theme='cute'] .font-display {
