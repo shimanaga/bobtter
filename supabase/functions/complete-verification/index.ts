@@ -93,16 +93,25 @@ Deno.serve(async (req) => {
 
       userId = newUser.user.id
 
-      const username = `user_${discord_id.slice(-6)}`
+      // discord_id を晒さないランダムなユーザー名を生成し、衝突したら別名で再試行する。
+      // （旧方式 user_<下6桁> は ID 衝突で登録不能になり得たうえ、ID の一部が漏れていた）
+      const randomUsername = () => `user_${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`
 
-      const { error: profileErr } = await supabase.from('profiles').insert({
-        id: userId,
-        discord_id,
-        username,
-        display_name: verification.display_name,
-        avatar_url: avatarUrl,
-        discord_avatar_url: avatarUrl,  // 初期アバターとして永続保存
-      })
+      let profileErr: { code?: string; message?: string } | null = null
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const { error } = await supabase.from('profiles').insert({
+          id: userId,
+          discord_id,
+          username: randomUsername(),
+          display_name: verification.display_name,
+          avatar_url: avatarUrl,
+          discord_avatar_url: avatarUrl,  // 初期アバターとして永続保存
+        })
+        if (!error) { profileErr = null; break }
+        profileErr = error
+        // 23505 = unique_violation。username 衝突のときだけ別名で再試行する
+        if (!(error.code === '23505' && /username/i.test(error.message ?? ''))) break
+      }
 
       if (profileErr) {
         await supabase.auth.admin.deleteUser(userId)

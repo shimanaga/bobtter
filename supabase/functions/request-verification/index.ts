@@ -20,6 +20,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// 招待済みユーザー名の許可リスト（サーバー側で強制）。
+// クライアント（LoginPage）の同名リストは UX 用で、ここが実際の境界。
+// 運用で増やす場合はここに追記する（将来的には DB テーブル化が望ましい）。
+const ALLOWED_USERNAMES = new Set([
+  '1692.3.1', 'mirufiru3', 'mirifiru3', 'sehayaijiko',
+  'katsuobushi9195', 'nossan25', 'frosiky1314', 'nosu8118', 'azalea_171',
+])
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -30,6 +38,12 @@ Deno.serve(async (req) => {
 
     if (!username?.trim()) {
       return json({ error: 'Discord ユーザー名が必要です' }, 400)
+    }
+
+    // 招待制をサーバー側で強制（@ と大文字を正規化して照合）
+    const normalized = username.trim().toLowerCase().replace(/^@+/, '')
+    if (!ALLOWED_USERNAMES.has(normalized)) {
+      return json({ error: '招待されていないユーザー名です。' }, 403)
     }
 
     const botBase = Deno.env.get('DISCORD_BOT_ENDPOINT')

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { POST_SELECT, fetchPostsMeta, metaOf } from '../lib/queries'
 import { useAuth } from '../contexts/AuthContext'
 import PostCard from '../components/PostCard'
 import PostComposer from '../components/PostComposer'
@@ -13,40 +14,10 @@ interface Props {
 
 async function fetchWithMeta(data: any[], userId: string): Promise<Map<string, PostWithMeta>> {
   if (!data.length) return new Map()
-  const ids = data.map(p => p.id)
-  const [{ data: likes }, { data: bookmarks }, { data: allLikes }, { data: replyCounts }, { data: myReactions }, { data: allReactions }] = await Promise.all([
-    supabase.from('likes').select('post_id').eq('user_id', userId).in('post_id', ids),
-    supabase.from('bookmarks').select('post_id').eq('user_id', userId).in('post_id', ids),
-    supabase.from('likes').select('post_id').in('post_id', ids),
-    supabase.from('posts').select('parent_id').in('parent_id', ids),
-    supabase.from('reactions').select('post_id, reaction_type').eq('user_id', userId).in('post_id', ids),
-    supabase.from('reactions').select('post_id, reaction_type').in('post_id', ids),
-  ])
-  const likedSet = new Set(likes?.map(l => l.post_id))
-  const bookmarkedSet = new Set(bookmarks?.map(b => b.post_id))
-  const likeMap: Record<string, number> = {}
-  allLikes?.forEach(l => { likeMap[l.post_id] = (likeMap[l.post_id] ?? 0) + 1 })
-  const replyMap: Record<string, number> = {}
-  replyCounts?.forEach(r => { if (r.parent_id) replyMap[r.parent_id] = (replyMap[r.parent_id] ?? 0) + 1 })
-  const myReactionSet = new Set(myReactions?.map(r => `${r.post_id}:${r.reaction_type}`) ?? [])
-  const reactionCountMap: Record<string, Record<string, number>> = {}
-  allReactions?.forEach(r => {
-    if (!reactionCountMap[r.post_id]) reactionCountMap[r.post_id] = {}
-    reactionCountMap[r.post_id][r.reaction_type] = (reactionCountMap[r.post_id][r.reaction_type] ?? 0) + 1
-  })
+  const metaMap = await fetchPostsMeta(data.map(p => p.id), userId)
   const map = new Map<string, PostWithMeta>()
   data.forEach(p => {
-    const reactions = Object.entries(reactionCountMap[p.id] ?? {}).map(([type, count]) => ({
-      type, count, reacted_by_me: myReactionSet.has(`${p.id}:${type}`),
-    }))
-    map.set(p.id, {
-      ...p,
-      likes_count: likeMap[p.id] ?? 0,
-      replies_count: replyMap[p.id] ?? 0,
-      liked_by_me: likedSet.has(p.id),
-      bookmarked_by_me: bookmarkedSet.has(p.id),
-      reactions,
-    })
+    map.set(p.id, { ...p, ...metaOf(metaMap, p.id) })
   })
   return map
 }
@@ -73,12 +44,12 @@ export default function PostDetailPage({ channels }: Props) {
     setReplies([])
 
     const { data: postData } = await supabase
-      .from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
+      .from('posts').select(POST_SELECT)
       .eq('id', id!).single()
     if (!postData) { setLoading(false); return }
 
     const { data: repliesData } = await supabase
-      .from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
+      .from('posts').select(POST_SELECT)
       .eq('parent_id', id!).order('created_at', { ascending: true })
 
     const allData = [postData, ...(repliesData ?? [])]
@@ -86,7 +57,7 @@ export default function PostDetailPage({ channels }: Props) {
     let parentData: any = null
     if (postData.parent_id) {
       const { data } = await supabase
-        .from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
+        .from('posts').select(POST_SELECT)
         .eq('id', postData.parent_id).single()
       parentData = data
       if (data) allData.push(data)

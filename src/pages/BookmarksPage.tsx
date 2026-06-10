@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { POST_SELECT, fetchPostsMeta, metaOf } from '../lib/queries'
 import { useAuth } from '../contexts/AuthContext'
 import PostCard from '../components/PostCard'
 import type { Channel, PostWithMeta } from '../lib/database.types'
@@ -18,35 +19,16 @@ export default function BookmarksPage({ channels }: BookmarksPageProps) {
     async function load() {
       const { data } = await supabase
         .from('bookmarks')
-        .select('post_id, posts(*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*))')
+        .select(`post_id, posts(${POST_SELECT})`)
         .eq('user_id', profile!.id)
         .order('created_at', { ascending: false })
 
       if (!data) { setLoading(false); return }
 
-      const rawPosts = data.map(b => b.posts).filter(Boolean) as PostWithMeta[]
-      const postIds = rawPosts.map(p => p.id)
+      const rawPosts = data.map(b => b.posts).filter(Boolean) as unknown as PostWithMeta[]
+      const metaMap = await fetchPostsMeta(rawPosts.map(p => p.id), profile!.id)
 
-      const [{ data: likes }, { data: replyCounts }] = await Promise.all([
-        supabase.from('likes').select('post_id').eq('user_id', profile!.id).in('post_id', postIds),
-        supabase.from('posts').select('parent_id').in('parent_id', postIds),
-      ])
-      const likedSet = new Set(likes?.map(l => l.post_id) ?? [])
-      const replyMap: Record<string, number> = {}
-      replyCounts?.forEach(r => { if (r.parent_id) replyMap[r.parent_id] = (replyMap[r.parent_id] ?? 0) + 1 })
-
-      const { data: lc } = await supabase.from('likes').select('post_id').in('post_id', postIds)
-      const likeCountMap: Record<string, number> = {}
-      lc?.forEach(l => { likeCountMap[l.post_id] = (likeCountMap[l.post_id] ?? 0) + 1 })
-
-      setPosts(rawPosts.map(p => ({
-        ...p,
-        likes_count: likeCountMap[p.id] ?? 0,
-        replies_count: replyMap[p.id] ?? 0,
-        liked_by_me: likedSet.has(p.id),
-        bookmarked_by_me: true,
-        reactions: [],
-      })))
+      setPosts(rawPosts.map(p => ({ ...p, ...metaOf(metaMap, p.id), bookmarked_by_me: true })))
       setLoading(false)
     }
     load()

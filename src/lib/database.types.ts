@@ -4,15 +4,16 @@ export interface Database {
   public: {
     Tables: {
       profiles: {
+        // discord_id / discord_avatar_url は秘匿列。一般クライアントは読めない
+        // （DB 側で列権限を REVOKE 済み）ため Row には含めない。
+        // 自分の初期アバターは my_discord_avatar_url() RPC で取得する。
         Row: {
           id: string
           username: string
           display_name: string
           avatar_url: string | null
-          discord_avatar_url: string | null
           bio: string | null
           is_admin: boolean
-          discord_id: string
           created_at: string
           updated_at: string
         }
@@ -305,7 +306,21 @@ export interface Database {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_posts_meta: {
+        Args: { p_ids: string[]; p_uid: string }
+        Returns: {
+          post_id: string
+          likes_count: number
+          replies_count: number
+          liked_by_me: boolean
+          bookmarked_by_me: boolean
+          reactions: Json
+        }[]
+      }
+      my_discord_avatar_url: {
+        Args: Record<string, never>
+        Returns: string | null
+      }
     }
     Enums: {
       [_ in never]: never

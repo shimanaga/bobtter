@@ -6,6 +6,7 @@ import { pendingLikeOps, pendingReactionOps } from '../hooks/useTimeline'
 import ReactionBar from './ReactionBar'
 import { Heart, MessageCircle, Bookmark, Hash, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { POST_SELECT, fetchPostsMeta, metaOf } from '../lib/queries'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import type { Channel, PostWithMeta } from '../lib/database.types'
@@ -465,32 +466,13 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
 
     const { data } = await supabase
       .from('posts')
-      .select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
+      .select(POST_SELECT)
       .eq('parent_id', post.id)
       .order('created_at', { ascending: true })
 
     if (data && profile) {
-      const postIds = data.map(p => p.id)
-      const [{ data: likes }, { data: bookmarks }, { data: allLikes }, { data: subReplies }] = await Promise.all([
-        supabase.from('likes').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
-        supabase.from('bookmarks').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
-        supabase.from('likes').select('post_id').in('post_id', postIds),
-        supabase.from('posts').select('parent_id').in('parent_id', postIds),
-      ])
-      const likedSet = new Set(likes?.map(l => l.post_id))
-      const bookmarkedSet = new Set(bookmarks?.map(b => b.post_id))
-      const likeCountMap: Record<string, number> = {}
-      allLikes?.forEach(l => { likeCountMap[l.post_id] = (likeCountMap[l.post_id] ?? 0) + 1 })
-      const replyCountMap: Record<string, number> = {}
-      subReplies?.forEach(r => { if (r.parent_id) replyCountMap[r.parent_id] = (replyCountMap[r.parent_id] ?? 0) + 1 })
-      setReplies(data.map(p => ({
-        ...p,
-        likes_count: likeCountMap[p.id] ?? 0,
-        replies_count: replyCountMap[p.id] ?? 0,
-        liked_by_me: likedSet.has(p.id),
-        bookmarked_by_me: bookmarkedSet.has(p.id),
-        reactions: [],
-      })))
+      const metaMap = await fetchPostsMeta(data.map(p => p.id), profile.id)
+      setReplies(data.map(p => ({ ...p, ...metaOf(metaMap, p.id) })))
     }
     setLoadingReplies(false)
   }

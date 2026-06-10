@@ -3,6 +3,7 @@ import { Image, EyeOff, Eye, X, Send, Loader2, AlertTriangle } from 'lucide-reac
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { uploadPostImage, uploadVideo, isVideo, VIDEO_MAX_BYTES } from '../lib/uploadImage'
+import { POST_SELECT } from '../lib/queries'
 import type { Channel, PostWithMeta } from '../lib/database.types'
 
 interface PostComposerProps {
@@ -125,7 +126,7 @@ export default function PostComposer({ channels, defaultChannelId, parentId, rep
           is_anonymous: effectiveIsAnonymous,
           parent_id: parentId ?? null,
         })
-        .select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
+        .select(POST_SELECT)
         .single()
 
       if (insertError) throw insertError

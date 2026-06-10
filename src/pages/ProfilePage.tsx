@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Camera, Check, Loader2, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -28,13 +28,22 @@ export default function ProfilePage() {
   const usernameDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Avatar state
-  const discordAvatarUrl = profile?.discord_avatar_url ?? null
+  // 初期（Discord）アバターは秘匿列なので、自分の分だけ RPC で取得する。
+  const [discordAvatarUrl, setDiscordAvatarUrl] = useState<string | null>(null)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   const [pendingBlob, setPendingBlob] = useState<Blob | null>(null)
   const [pendingPreview, setPendingPreview] = useState<string | null>(null)
   const [pendingReset, setPendingReset] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    let active = true
+    supabase.rpc('my_discord_avatar_url').then(({ data }) => {
+      if (active) setDiscordAvatarUrl(data ?? null)
+    })
+    return () => { active = false }
+  }, [profile?.id])
 
   // Displayed avatar: pending crop > pending reset (discord) > saved
   const displayAvatarUrl = pendingBlob

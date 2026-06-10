@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { POST_SELECT, fetchPostsMeta, metaOf } from '../lib/queries'
 import type { PostWithMeta, ReactionSummary } from '../lib/database.types'
 
 export type TimelineItem =
@@ -11,40 +12,10 @@ const PAGE_SIZE = 30
 
 async function enrichPosts(data: any[], userId: string): Promise<Map<string, PostWithMeta>> {
   if (data.length === 0) return new Map()
-  const postIds = data.map((p: any) => p.id)
-  const [{ data: likes }, { data: bookmarks }, { data: allLikes }, { data: replyCounts }, { data: myReactions }, { data: allReactions }] = await Promise.all([
-    supabase.from('likes').select('post_id').eq('user_id', userId).in('post_id', postIds),
-    supabase.from('bookmarks').select('post_id').eq('user_id', userId).in('post_id', postIds),
-    supabase.from('likes').select('post_id').in('post_id', postIds),
-    supabase.from('posts').select('parent_id').in('parent_id', postIds),
-    supabase.from('reactions').select('post_id, reaction_type').eq('user_id', userId).in('post_id', postIds),
-    supabase.from('reactions').select('post_id, reaction_type').in('post_id', postIds),
-  ])
-  const likedSet = new Set(likes?.map((l: any) => l.post_id) ?? [])
-  const bookmarkedSet = new Set(bookmarks?.map((b: any) => b.post_id) ?? [])
-  const likeCountMap: Record<string, number> = {}
-  allLikes?.forEach((l: any) => { likeCountMap[l.post_id] = (likeCountMap[l.post_id] ?? 0) + 1 })
-  const replyCountMap: Record<string, number> = {}
-  replyCounts?.forEach((r: any) => { if (r.parent_id) replyCountMap[r.parent_id] = (replyCountMap[r.parent_id] ?? 0) + 1 })
-  const myReactionSet = new Set(myReactions?.map((r: any) => `${r.post_id}:${r.reaction_type}`) ?? [])
-  const reactionCountMap: Record<string, Record<string, number>> = {}
-  allReactions?.forEach((r: any) => {
-    if (!reactionCountMap[r.post_id]) reactionCountMap[r.post_id] = {}
-    reactionCountMap[r.post_id][r.reaction_type] = (reactionCountMap[r.post_id][r.reaction_type] ?? 0) + 1
-  })
+  const metaMap = await fetchPostsMeta(data.map((p: any) => p.id), userId)
   const map = new Map<string, PostWithMeta>()
   data.forEach((p: any) => {
-    const reactions: ReactionSummary[] = Object.entries(reactionCountMap[p.id] ?? {}).map(([type, count]) => ({
-      type, count, reacted_by_me: myReactionSet.has(`${p.id}:${type}`),
-    }))
-    map.set(p.id, {
-      ...p,
-      likes_count: likeCountMap[p.id] ?? 0,
-      replies_count: replyCountMap[p.id] ?? 0,
-      liked_by_me: likedSet.has(p.id),
-      bookmarked_by_me: bookmarkedSet.has(p.id),
-      reactions,
-    })
+    map.set(p.id, { ...p, ...metaOf(metaMap, p.id) })
   })
   return map
 }
@@ -116,6 +87,17 @@ function removePostById(prev: TimelineItem[], id: string): TimelineItem[] {
   })
 }
 
+// slug → channel_id の解決結果をキャッシュ（ページ送り・Realtime のたびに引かない）
+const channelIdBySlug = new Map<string, string>()
+
+async function resolveChannelId(slug: string): Promise<string | undefined> {
+  const cached = channelIdBySlug.get(slug)
+  if (cached) return cached
+  const { data: ch } = await supabase.from('channels').select('id').eq('slug', slug).single()
+  if (ch) { channelIdBySlug.set(slug, ch.id); return ch.id }
+  return undefined
+}
+
 // 同一デバイスからのいいね操作をマーク（Realtimeの二重適用防止）
 export const pendingLikeOps = new Set<string>()
 // 同一デバイスからのリアクション操作をマーク（Realtimeの二重適用防止）
@@ -182,15 +164,15 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
   async function buildQuery(lt?: string) {
     let query = supabase
       .from('posts')
-      .select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)')
+      .select(POST_SELECT)
       .order('created_at', { ascending: false })
       .limit(PAGE_SIZE)
 
     if (lt) query = query.lt('created_at', lt)
 
     if (channelSlug) {
-      const { data: ch } = await supabase.from('channels').select('id').eq('slug', channelSlug).single()
-      if (ch) query = query.eq('channel_id', ch.id)
+      const chId = await resolveChannelId(channelSlug)
+      if (chId) query = query.eq('channel_id', chId)
     } else if (excludeChannelIds?.length) {
       query = query.not('channel_id', 'in', `(${excludeChannelIds.join(',')})`)
     }
@@ -227,7 +209,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
       data.filter((p: any) => p.parent_id && !enrichedMap.has(p.parent_id)).map((p: any) => p.parent_id as string)
     )]
     if (missingParentIds.length > 0) {
-      const { data: parents } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)').in('id', missingParentIds)
+      const { data: parents } = await supabase.from('posts').select(POST_SELECT).in('id', missingParentIds)
       if (loadTokenRef.current !== token) return
       if (parents) {
         const parentMap = await enrichPosts(parents, profile.id)
@@ -262,7 +244,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
         .map((p: any) => p.parent_id as string)
     )]
     if (missingParentIds.length > 0) {
-      const { data: parents } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)').in('id', missingParentIds)
+      const { data: parents } = await supabase.from('posts').select(POST_SELECT).in('id', missingParentIds)
       if (parents) {
         const parentMap = await enrichPosts(parents, profile.id)
         parentMap.forEach((v, k) => enrichedMap.set(k, v))
@@ -286,7 +268,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
         const newPost = payload.new as { id: string; parent_id: string | null; user_id: string | null; channel_id: string }
 
         if (newPost.parent_id) {
-          const { data } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)').eq('id', newPost.id).single()
+          const { data } = await supabase.from('posts').select(POST_SELECT).eq('id', newPost.id).single()
           if (!data) return
           const reply: PostWithMeta = { ...data, likes_count: 0, replies_count: 0, liked_by_me: false, bookmarked_by_me: false, reactions: [] }
           setItems(prev => {
@@ -305,7 +287,7 @@ export function useTimeline(channelSlug?: string, excludeChannelIds?: string[]) 
           return
         }
 
-        const { data } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*), channels!posts_channel_id_fkey(*)').eq('id', newPost.id).single()
+        const { data } = await supabase.from('posts').select(POST_SELECT).eq('id', newPost.id).single()
         if (!data) return
         if (channelSlug && data.channels?.slug !== channelSlug) return
         if (!channelSlug && excludeChannelIds?.includes(data.channel_id)) return
