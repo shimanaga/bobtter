@@ -7,6 +7,7 @@ import ReactionBar from './ReactionBar'
 import { Heart, MessageCircle, Bookmark, Hash, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { POST_SELECT, fetchPostsMeta, metaOf } from '../lib/queries'
+import { beginLoading } from '../lib/loadingBus'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import type { Channel, PostWithMeta } from '../lib/database.types'
@@ -464,17 +465,22 @@ export default function PostCard({ post, channels, onUpdate, onDelete, showChann
     setLoadingReplies(true)
     setShowReply(true)
 
-    const { data } = await supabase
-      .from('posts')
-      .select(POST_SELECT)
-      .eq('parent_id', post.id)
-      .order('created_at', { ascending: true })
+    const end = beginLoading('返信を読み込んでいます...')
+    try {
+      const { data } = await supabase
+        .from('posts')
+        .select(POST_SELECT)
+        .eq('parent_id', post.id)
+        .order('created_at', { ascending: true })
 
-    if (data && profile) {
-      const metaMap = await fetchPostsMeta(data.map(p => p.id), profile.id)
-      setReplies(data.map(p => ({ ...p, ...metaOf(metaMap, p.id) })))
+      if (data && profile) {
+        const metaMap = await fetchPostsMeta(data.map(p => p.id), profile.id)
+        setReplies(data.map(p => ({ ...p, ...metaOf(metaMap, p.id) })))
+      }
+    } finally {
+      end()
+      setLoadingReplies(false)
     }
-    setLoadingReplies(false)
   }
 
   function handleReplyPosted(newReply: PostWithMeta) {

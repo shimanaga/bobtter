@@ -21,26 +21,52 @@ interface ChannelPrefsContextValue {
 
 const ChannelPrefsContext = createContext<ChannelPrefsContextValue | null>(null)
 
+// localStorage に前回の設定をキャッシュし、起動直後から正しい表示順・除外設定で
+// タイムラインを引けるようにする（サーバー応答後に差し替え・保存し直す）
+const prefsCacheKey = (uid: string) => `bobtter:prefs:${uid}`
+
+function readPrefsCache(uid: string): Map<string, Pref> | null {
+  try {
+    const raw = localStorage.getItem(prefsCacheKey(uid))
+    if (!raw) return null
+    return new Map(JSON.parse(raw) as [string, Pref][])
+  } catch { return null }
+}
+
+function writePrefsCache(uid: string, prefs: Map<string, Pref>) {
+  try { localStorage.setItem(prefsCacheKey(uid), JSON.stringify([...prefs])) } catch { /* quota 等は無視 */ }
+}
+
 export function ChannelPrefsProvider({ channels, children }: { channels: Channel[]; children: ReactNode }) {
-  const { profile } = useAuth()
-  const [prefs, setPrefs] = useState<Map<string, Pref>>(new Map())
+  // profile の取得完了を待たず、セッションの user.id で設定を引く
+  const { user, profile } = useAuth()
+  const uid = user?.id
+  const [prefs, setPrefs] = useState<Map<string, Pref>>(() => (uid && readPrefsCache(uid)) || new Map())
 
   useEffect(() => {
-    if (!profile || channels.length === 0) return
+    if (!uid) return
+    const cached = readPrefsCache(uid)
+    if (cached) setPrefs(cached)
     supabase
       .from('user_channel_preferences')
       .select('channel_id, position, visibility, hide_replies')
-      .eq('user_id', profile.id)
+      .eq('user_id', uid)
       .then(({ data }) => {
+        if (!data) return
         const map = new Map<string, Pref>()
-        data?.forEach(p => map.set(p.channel_id, {
+        data.forEach(p => map.set(p.channel_id, {
           position: p.position,
           visibility: p.visibility as ChannelVisibility,
           hideReplies: p.hide_replies ?? false,
         }))
         setPrefs(map)
       })
-  }, [profile?.id, channels.length])
+  }, [uid])
+
+  // 設定が変わるたびキャッシュへ書き戻す（move / setVisibility 等の更新も含む）
+  useEffect(() => {
+    if (uid && prefs.size > 0) writePrefsCache(uid, prefs)
+  }, [uid, prefs])
 
   const allSorted = useMemo<ChannelWithPref[]>(() => {
     return [...channels]

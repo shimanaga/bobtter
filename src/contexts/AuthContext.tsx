@@ -31,8 +31,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      if (session) fetchProfile(session.user.id).finally(() => setLoading(false))
-      else setLoading(false)
+      // プロフィール取得を待たずに描画を開始する（1 往復ぶん初回表示が速くなる）。
+      // profile を使う UI は各自 null ガード済みで、到着後に自然に埋まる。
+      setLoading(false)
+      if (session) fetchProfile(session.user.id)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {

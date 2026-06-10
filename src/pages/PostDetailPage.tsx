@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { POST_SELECT, fetchPostsMeta, metaOf } from '../lib/queries'
+import { beginLoading } from '../lib/loadingBus'
 import { useAuth } from '../contexts/AuthContext'
 import PostCard from '../components/PostCard'
 import PostComposer from '../components/PostComposer'
@@ -12,20 +13,11 @@ interface Props {
   channels: Channel[]
 }
 
-async function fetchWithMeta(data: any[], userId: string): Promise<Map<string, PostWithMeta>> {
-  if (!data.length) return new Map()
-  const metaMap = await fetchPostsMeta(data.map(p => p.id), userId)
-  const map = new Map<string, PostWithMeta>()
-  data.forEach(p => {
-    map.set(p.id, { ...p, ...metaOf(metaMap, p.id) })
-  })
-  return map
-}
-
 export default function PostDetailPage({ channels }: Props) {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { profile } = useAuth()
+  // profile の取得完了を待たず、セッションの user.id で読み始める
+  const { user } = useAuth()
 
   const [post, setPost] = useState<PostWithMeta | null>(null)
   const [parent, setParent] = useState<PostWithMeta | null>(null)
@@ -33,9 +25,9 @@ export default function PostDetailPage({ channels }: Props) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!id || !profile) return
+    if (!id || !user) return
     load()
-  }, [id, profile?.id])
+  }, [id, user?.id])
 
   async function load() {
     setLoading(true)
@@ -43,31 +35,36 @@ export default function PostDetailPage({ channels }: Props) {
     setParent(null)
     setReplies([])
 
-    const { data: postData } = await supabase
-      .from('posts').select(POST_SELECT)
-      .eq('id', id!).single()
-    if (!postData) { setLoading(false); return }
+    const endPosts = beginLoading('投稿を読み込んでいます...')
 
-    const { data: repliesData } = await supabase
-      .from('posts').select(POST_SELECT)
-      .eq('parent_id', id!).order('created_at', { ascending: true })
+    try {
+      // 投稿本体と返信一覧は独立しているので並列で取得
+      const [{ data: postData }, { data: repliesData }] = await Promise.all([
+        supabase.from('posts').select(POST_SELECT).eq('id', id!).single(),
+        supabase.from('posts').select(POST_SELECT).eq('parent_id', id!).order('created_at', { ascending: true }),
+      ])
+      if (!postData) return
 
-    const allData = [postData, ...(repliesData ?? [])]
+      // メタ集計は親 ID も先に含められるので、親の行取得と並列で 1 往復にまとめる
+      const metaIds = [postData.id, ...(repliesData ?? []).map(r => r.id)]
+      if (postData.parent_id) metaIds.push(postData.parent_id)
 
-    let parentData: any = null
-    if (postData.parent_id) {
-      const { data } = await supabase
-        .from('posts').select(POST_SELECT)
-        .eq('id', postData.parent_id).single()
-      parentData = data
-      if (data) allData.push(data)
+      const endMeta = beginLoading('リアクションを読み込んでいます...')
+      const [metaMap, parentRes] = await Promise.all([
+        fetchPostsMeta(metaIds, user!.id),
+        postData.parent_id
+          ? supabase.from('posts').select(POST_SELECT).eq('id', postData.parent_id).single()
+          : Promise.resolve(null),
+      ]).finally(endMeta)
+
+      const withMeta = (p: any): PostWithMeta => ({ ...p, ...metaOf(metaMap, p.id) })
+      setPost(withMeta(postData))
+      setReplies((repliesData ?? []).map(withMeta))
+      if (parentRes?.data) setParent(withMeta(parentRes.data))
+    } finally {
+      endPosts()
+      setLoading(false)
     }
-
-    const enriched = await fetchWithMeta(allData, profile!.id)
-    setPost(enriched.get(postData.id) ?? null)
-    setReplies(repliesData?.map(r => enriched.get(r.id)!).filter(Boolean) ?? [])
-    if (parentData) setParent(enriched.get(parentData.id) ?? null)
-    setLoading(false)
   }
 
   function handleReplyPosted(newReply: PostWithMeta) {

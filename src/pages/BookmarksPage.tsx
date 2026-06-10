@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { POST_SELECT, fetchPostsMeta, metaOf } from '../lib/queries'
+import { beginLoading } from '../lib/loadingBus'
 import { useAuth } from '../contexts/AuthContext'
 import PostCard from '../components/PostCard'
 import type { Channel, PostWithMeta } from '../lib/database.types'
@@ -17,19 +18,24 @@ export default function BookmarksPage({ channels }: BookmarksPageProps) {
   useEffect(() => {
     if (!profile) return
     async function load() {
-      const { data } = await supabase
-        .from('bookmarks')
-        .select(`post_id, posts(${POST_SELECT})`)
-        .eq('user_id', profile!.id)
-        .order('created_at', { ascending: false })
+      const end = beginLoading('ブックマークを読み込んでいます...')
+      try {
+        const { data } = await supabase
+          .from('bookmarks')
+          .select(`post_id, posts(${POST_SELECT})`)
+          .eq('user_id', profile!.id)
+          .order('created_at', { ascending: false })
 
-      if (!data) { setLoading(false); return }
+        if (!data) return
 
-      const rawPosts = data.map(b => b.posts).filter(Boolean) as unknown as PostWithMeta[]
-      const metaMap = await fetchPostsMeta(rawPosts.map(p => p.id), profile!.id)
+        const rawPosts = data.map(b => b.posts).filter(Boolean) as unknown as PostWithMeta[]
+        const metaMap = await fetchPostsMeta(rawPosts.map(p => p.id), profile!.id)
 
-      setPosts(rawPosts.map(p => ({ ...p, ...metaOf(metaMap, p.id), bookmarked_by_me: true })))
-      setLoading(false)
+        setPosts(rawPosts.map(p => ({ ...p, ...metaOf(metaMap, p.id), bookmarked_by_me: true })))
+      } finally {
+        end()
+        setLoading(false)
+      }
     }
     load()
   }, [profile])

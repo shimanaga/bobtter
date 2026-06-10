@@ -14,14 +14,23 @@ import ProfilePage from './pages/ProfilePage'
 import AdminPage from './pages/AdminPage'
 import PostDetailPage from './pages/PostDetailPage'
 
+const CHANNELS_CACHE_KEY = 'bobtter:channels'
+
+function readChannelsCache(): Channel[] {
+  try { return JSON.parse(localStorage.getItem(CHANNELS_CACHE_KEY) ?? '[]') } catch { return [] }
+}
+
 function AppRoutes() {
   const { session, loading } = useAuth()
-  const [channels, setChannels] = useState<Channel[]>([])
+  // 前回のチャンネル一覧を即座に使い、サーバー応答で差し替える
+  const [channels, setChannels] = useState<Channel[]>(readChannelsCache)
 
   useEffect(() => {
     if (!session) return
     supabase.from('channels').select('*').order('position').then(({ data }) => {
-      setChannels(data ?? [])
+      if (!data) return
+      setChannels(data)
+      try { localStorage.setItem(CHANNELS_CACHE_KEY, JSON.stringify(data)) } catch { /* ignore */ }
     })
   }, [session])
 
